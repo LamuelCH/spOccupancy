@@ -1552,7 +1552,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       }
       registerDoParallel(k.fold.threads)
       model.deviance <- foreach (i = 1:k.fold, .combine = "+") %dopar% {
-        curr.set.small <- sort(sites.random[sites.k.fold[[i]]])
+        curr.set.small <- sort(sites.k.fold[[i]])
         curr.set <- which(grid.index.r %in% curr.set.small)
         if (binom) {
           y.indx <- !(1:J %in% curr.set)
