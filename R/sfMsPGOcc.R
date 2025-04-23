@@ -6,7 +6,9 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
                       n.burn = round(.10 * n.batch * batch.length), 
                       n.thin = 1, n.chains = 1, 
                       k.fold, k.fold.threads = 1, 
-                      k.fold.seed = 100, k.fold.only = FALSE, ...){
+                      k.fold.seed = 100, k.fold.only = FALSE,
+                      # New parameter for custom cluster assignments
+                      custom.cluster = NULL, ...){
 
   ptm <- proc.time()
 
@@ -1507,19 +1509,47 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       }
     }
     # K-fold cross-validation -------
+    # K-fold cross-validation -------
     if (!missing(k.fold)) {
       if (verbose) {      
         cat("----------------------------------------\n");
         cat("\tCross-validation\n");
         cat("----------------------------------------\n");
         message(paste("Performing ", k.fold, "-fold cross-validation using ", k.fold.threads,
-      	      " thread(s).", sep = ''))
+                      " thread(s).", sep = ''))
       }
-      # Currently implemented without parellization. 
-      set.seed(k.fold.seed)
-      # Number of sites in each hold out data set. 
-      sites.random <- sample(1:J.w)    
-      sites.k.fold <- split(sites.random, sites.random %% k.fold)
+      
+      # Modified part: Use custom clustering if provided, otherwise use random assignment
+      if (!is.null(custom.cluster)) {
+        # Verify that custom.cluster has the correct length
+        if (length(custom.cluster) != J.w) {
+          stop("custom.cluster must have length equal to the number of spatial coordinates")
+        }
+        # Verify that custom.cluster has values from 1 to k.fold
+        if (min(custom.cluster) < 1 || max(custom.cluster) > k.fold) {
+          stop("custom.cluster must contain values from 1 to k.fold")
+        }
+        
+        # Use the custom cluster assignments directly
+        sites.k.fold <- list()
+        for (i in 1:k.fold) {
+          sites.k.fold[[i]] <- which(custom.cluster == i)
+        }
+        
+        if (verbose) {
+          message("Using custom cluster assignments for cross-validation")
+        }
+      } else {
+        # Original random assignment code
+        set.seed(k.fold.seed)
+        # Number of sites in each hold out data set. 
+        sites.random <- sample(1:J.w)    
+        sites.k.fold <- split(sites.random, sites.random %% k.fold)
+        
+        if (verbose) {
+          message("Using random assignment for cross-validation")
+        }
+      }
       registerDoParallel(k.fold.threads)
       model.deviance <- foreach (i = 1:k.fold, .combine = "+") %dopar% {
         curr.set.small <- sort(sites.random[sites.k.fold[[i]]])
