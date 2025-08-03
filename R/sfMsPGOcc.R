@@ -1854,88 +1854,88 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
             }
           }
         }
-        apply(like.samples, 1, function(a) sum(log(a), na.rm = TRUE))
-      }
-      # Calculate deviance (original metric)
-      fold.deviance <- -2 * sum(apply(like.samples, 1, function(a) sum(log(a), na.rm = TRUE)))
-      
-      # Initialize metrics storage
-      fold.metrics <- list()
-      fold.metrics$deviance <- fold.deviance
-      
-      # Calculate additional metrics for each species
-      if (calculate.auc) {
-        auc.values <- numeric(N)
-        brier.scores <- numeric(N)
-        log.scores <- numeric(N)
-        tjur.r2 <- numeric(N)
+        # Calculate deviance (original metric)
+        fold.deviance <- -2 * sum(apply(like.samples, 1, function(a) sum(log(a), na.rm = TRUE)))
+        
+        # Initialize metrics storage
+        fold.metrics <- list()
+        fold.metrics$deviance <- fold.deviance
+        
+        # Calculate additional metrics for each species
+        if (calculate.auc) {
+          auc.values <- numeric(N)
+          brier.scores <- numeric(N)
+          log.scores <- numeric(N)
+          tjur.r2 <- numeric(N)
+          
+          for (r in 1:N) {
+            # Get predicted probabilities for species r
+            pred.probs <- colMeans(out.pred$z.0.samples[, r, ])
+            
+            # Get observed occurrences for species r
+            # Maximum occurrence across visits indicates presence
+            obs.occ <- apply(y.big.0[r, , , drop = FALSE], 2, max, na.rm = TRUE)
+            obs.occ[obs.occ == -Inf] <- NA
+            valid.sites <- !is.na(obs.occ)
+            
+            if (sum(valid.sites) > 0 && length(unique(obs.occ[valid.sites])) > 1) {
+              # AUC
+              auc.values[r] <- pROC::auc(obs.occ[valid.sites], pred.probs[valid.sites], 
+                                         quiet = TRUE)
+              
+              # Brier Score
+              brier.scores[r] <- mean((pred.probs[valid.sites] - obs.occ[valid.sites])^2)
+              
+              # Logarithmic Score (proper scoring rule)
+              eps <- 1e-10  # Small value to avoid log(0)
+              pred.probs.bounded <- pmax(pmin(pred.probs[valid.sites], 1 - eps), eps)
+              log.scores[r] <- -mean(obs.occ[valid.sites] * log(pred.probs.bounded) + 
+                                       (1 - obs.occ[valid.sites]) * log(1 - pred.probs.bounded))
+              
+              # Tjur's R² (discrimination coefficient)
+              mean.1 <- mean(pred.probs[valid.sites][obs.occ[valid.sites] == 1])
+              mean.0 <- mean(pred.probs[valid.sites][obs.occ[valid.sites] == 0])
+              tjur.r2[r] <- mean.1 - mean.0
+            } else {
+              auc.values[r] <- NA
+              brier.scores[r] <- NA
+              log.scores[r] <- NA
+              tjur.r2[r] <- NA
+            }
+          }
+          
+          fold.metrics$auc <- auc.values
+          fold.metrics$brier <- brier.scores
+          fold.metrics$log.score <- log.scores
+          fold.metrics$tjur.r2 <- tjur.r2
+        }
+        
+        # Calculate RMSE for occurrence probability
+        rmse.values <- numeric(N)
+        mae.values <- numeric(N)
         
         for (r in 1:N) {
-          # Get predicted probabilities for species r
           pred.probs <- colMeans(out.pred$z.0.samples[, r, ])
-          
-          # Get observed occurrences for species r
-          # Maximum occurrence across visits indicates presence
           obs.occ <- apply(y.big.0[r, , , drop = FALSE], 2, max, na.rm = TRUE)
           obs.occ[obs.occ == -Inf] <- NA
           valid.sites <- !is.na(obs.occ)
           
-          if (sum(valid.sites) > 0 && length(unique(obs.occ[valid.sites])) > 1) {
-            # AUC
-            auc.values[r] <- pROC::auc(obs.occ[valid.sites], pred.probs[valid.sites], 
-                                       quiet = TRUE)
-            
-            # Brier Score
-            brier.scores[r] <- mean((pred.probs[valid.sites] - obs.occ[valid.sites])^2)
-            
-            # Logarithmic Score (proper scoring rule)
-            eps <- 1e-10  # Small value to avoid log(0)
-            pred.probs.bounded <- pmax(pmin(pred.probs[valid.sites], 1 - eps), eps)
-            log.scores[r] <- -mean(obs.occ[valid.sites] * log(pred.probs.bounded) + 
-                                     (1 - obs.occ[valid.sites]) * log(1 - pred.probs.bounded))
-            
-            # Tjur's R² (discrimination coefficient)
-            mean.1 <- mean(pred.probs[valid.sites][obs.occ[valid.sites] == 1])
-            mean.0 <- mean(pred.probs[valid.sites][obs.occ[valid.sites] == 0])
-            tjur.r2[r] <- mean.1 - mean.0
+          if (sum(valid.sites) > 0) {
+            rmse.values[r] <- sqrt(mean((pred.probs[valid.sites] - obs.occ[valid.sites])^2))
+            mae.values[r] <- mean(abs(pred.probs[valid.sites] - obs.occ[valid.sites]))
           } else {
-            auc.values[r] <- NA
-            brier.scores[r] <- NA
-            log.scores[r] <- NA
-            tjur.r2[r] <- NA
+            rmse.values[r] <- NA
+            mae.values[r] <- NA
           }
         }
         
-        fold.metrics$auc <- auc.values
-        fold.metrics$brier <- brier.scores
-        fold.metrics$log.score <- log.scores
-        fold.metrics$tjur.r2 <- tjur.r2
-      }
-      
-      # Calculate RMSE for occurrence probability
-      rmse.values <- numeric(N)
-      mae.values <- numeric(N)
-      
-      for (r in 1:N) {
-        pred.probs <- colMeans(out.pred$z.0.samples[, r, ])
-        obs.occ <- apply(y.big.0[r, , , drop = FALSE], 2, max, na.rm = TRUE)
-        obs.occ[obs.occ == -Inf] <- NA
-        valid.sites <- !is.na(obs.occ)
+        fold.metrics$rmse <- rmse.values
+        fold.metrics$mae <- mae.values
         
-        if (sum(valid.sites) > 0) {
-          rmse.values[r] <- sqrt(mean((pred.probs[valid.sites] - obs.occ[valid.sites])^2))
-          mae.values[r] <- mean(abs(pred.probs[valid.sites] - obs.occ[valid.sites]))
-        } else {
-          rmse.values[r] <- NA
-          mae.values[r] <- NA
-        }
+        # Return all metrics
+        fold.metrics
       }
       
-      fold.metrics$rmse <- rmse.values
-      fold.metrics$mae <- mae.values
-      
-      # Return all metrics
-      fold.metrics
     }
     
     stopImplicitCluster()
