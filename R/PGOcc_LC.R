@@ -1,5 +1,4 @@
-#' @export
-PGOcc_LC <- function(occ.formula, det.formula, data, inits, priors, n.samples,
+PGOcc <- function(occ.formula, det.formula, data, inits, priors, n.samples,
                   n.omp.threads = 1, verbose = TRUE, n.report = 100,
                   n.burn = round(.10 * n.samples), n.thin = 1, n.chains = 1,
                   k.fold, k.fold.threads = 1, k.fold.seed, k.fold.only = FALSE,
