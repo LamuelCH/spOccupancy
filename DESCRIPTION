@@ -10,7 +10,7 @@ Description: Fits single-species, multi-species, and integrated non-spatial and 
 License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.1.1
+RoxygenNote: 7.3.2
 URL: https://www.doserlab.com/files/spoccupancy-web,
         https://groups.google.com/g/spocc-spabund-users,
         https://github.com/biodiverse/spOccupancy

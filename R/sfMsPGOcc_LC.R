@@ -1,3 +1,4 @@
+#' @export
 sfMsPGOcc_LC <- function(occ.formula, det.formula, data, inits, priors, tuning,
                       cov.model = 'exponential', NNGP = TRUE, n.neighbors = 15,
                       search.type = "cb", n.batch, batch.length,
