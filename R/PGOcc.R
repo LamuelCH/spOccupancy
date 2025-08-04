@@ -2,36 +2,37 @@ PGOcc <- function(occ.formula, det.formula, data, inits, priors,
                   n.samples, n.omp.threads = 1, verbose = TRUE,
                   n.report = 100, n.burn = round(.10 * n.samples), n.thin = 1, 
                   n.chains = 1, k.fold, k.fold.threads = 1, 
-                  k.fold.seed = 100, k.fold.only = FALSE, ...){
-
+                  k.fold.seed = 100, k.fold.only = FALSE, 
+                  custom.cluster = NULL, ...){
+  
   ptm <- proc.time()
-
+  
   # Make it look nice
   if (verbose) {
     cat("----------------------------------------\n");
     cat("\tPreparing to run the model\n");
     cat("----------------------------------------\n");
   }
-
+  
   # Functions ---------------------------------------------------------------
   logit <- function(theta, a = 0, b = 1) {log((theta-a)/(b-theta))}
   logit.inv <- function(z, a = 0, b = 1) {b-(b-a)/(1+exp(z))}
   rigamma <- function(n, a, b){
     1/rgamma(n = n, shape = a, rate = b)
   }
-
+  
   # Check for unused arguments ------------------------------------------
   formal.args <- names(formals(sys.function(sys.parent())))
   elip.args <- names(list(...))
   for(i in elip.args){
-      if(! i %in% formal.args)
-          warning("'",i, "' is not an argument")
+    if(! i %in% formal.args)
+      warning("'",i, "' is not an argument")
   }
   # Call ----------------------------------------------------------------
   # Returns a call in which all of the specified arguments are
   # specified by their full names.
   cl <- match.call()
-
+  
   # Some initial checks -------------------------------------------------
   if (missing(data)) {
     stop("data must be specified")
@@ -78,7 +79,7 @@ PGOcc <- function(occ.formula, det.formula, data, inits, priors,
     if (det.formula == ~ 1) {
       if (verbose) {
         message("detection covariates (det.covs) not specified in data.\nAssuming interept only detection model.\n")
-}
+      }
       data$det.covs <- list(int = rep(1, dim(y)[1]))
     } else {
       stop("det.covs must be specified in data for a detection model with covariates")
@@ -106,7 +107,7 @@ PGOcc <- function(occ.formula, det.formula, data, inits, priors,
       stop("k.fold must be a single integer value >= 2")  
     }
   }
-
+  
   # First subset detection covariates to only use those that are included in the analysis. 
   data$det.covs <- data$det.covs[names(data$det.covs) %in% all.vars(det.formula)]
   # Null model support
@@ -121,12 +122,12 @@ PGOcc <- function(occ.formula, det.formula, data, inits, priors,
   # if necessary
   y.big <- y
   if (nrow(data$det.covs) == nrow(y)) {
-   # Convert data to binomial form
-   y <- apply(y, 1, sum, na.rm = TRUE) 
-   binom <- TRUE
+    # Convert data to binomial form
+    y <- apply(y, 1, sum, na.rm = TRUE) 
+    binom <- TRUE
   }
   data$occ.covs <- as.data.frame(data$occ.covs)
-
+  
   # Check whether random effects are sent in as numeric, and
   # return error if they are. 
   # Occurrence ----------------------
@@ -153,7 +154,7 @@ PGOcc <- function(occ.formula, det.formula, data, inits, priors,
       }
     }
   }
-
+  
   # Checking missing values ---------------------------------------------
   # y -------------------------------
   y.na.test <- apply(y.big, 1, function(a) sum(!is.na(a)))
@@ -190,7 +191,7 @@ PGOcc <- function(occ.formula, det.formula, data, inits, priors,
       stop("missing values in site-level det.covs. Please remove these sites from all objects in data or somehow replace the NA values with non-missing values (e.g., mean imputation).") 
     }
   }
-
+  
   # Formula -------------------------------------------------------------
   # Occupancy -----------------------
   if (is(occ.formula, 'formula')) {
@@ -204,8 +205,8 @@ PGOcc <- function(occ.formula, det.formula, data, inits, priors,
   }
   # Get RE level names
   re.level.names <- lapply(data$occ.covs[, x.re.names, drop = FALSE],
-		     function (a) sort(unique(a)))
-
+                           function (a) sort(unique(a)))
+  
   # Detection -----------------------
   if (is(det.formula, 'formula')) {
     tmp <- parseFormula(det.formula, data$det.covs)
@@ -217,8 +218,8 @@ PGOcc <- function(occ.formula, det.formula, data, inits, priors,
     stop("det.formula is misspecified")
   }
   p.re.level.names <- lapply(data$det.covs[, x.p.re.names, drop = FALSE],
-		       function (a) sort(unique(a)))
-
+                             function (a) sort(unique(a)))
+  
   # Get basic info from inputs ------------------------------------------
   # Number of sites
   J <- nrow(y.big)
@@ -247,7 +248,7 @@ PGOcc <- function(occ.formula, det.formula, data, inits, priors,
   K.max <- max(n.rep)
   # Because I like K better than n.rep
   K <- n.rep
-
+  
   # Get indices to map z to y -------------------------------------------
   if (!binom) {
     z.long.indx <- rep(1:J, dim(y.big)[2])
@@ -271,7 +272,7 @@ PGOcc <- function(occ.formula, det.formula, data, inits, priors,
   y <- y[!is.na(y)]
   # Number of data points for the y vector
   n.obs <- nrow(X.p)
-
+  
   # Get random effect matrices all set ----------------------------------
   if (p.occ.re > 1) {
     for (j in 2:p.occ.re) {
@@ -298,19 +299,19 @@ PGOcc <- function(occ.formula, det.formula, data, inits, priors,
     if (length(mu.beta) != p.occ & length(mu.beta) != 1) {
       if (p.occ == 1) {
         stop(paste("beta.normal[[1]] must be a vector of length ",
-  	     p.occ, " with elements corresponding to betas' mean", sep = ""))
-} else {
+                   p.occ, " with elements corresponding to betas' mean", sep = ""))
+      } else {
         stop(paste("beta.normal[[1]] must be a vector of length ",
-  	     p.occ, " or 1 with elements corresponding to betas' mean", sep = ""))
+                   p.occ, " or 1 with elements corresponding to betas' mean", sep = ""))
       }
     }
     if (length(sigma.beta) != p.occ & length(sigma.beta) != 1) {
       if (p.occ == 1) {
         stop(paste("beta.normal[[2]] must be a vector of length ",
-	   p.occ, " with elements corresponding to betas' variance", sep = ""))
+                   p.occ, " with elements corresponding to betas' variance", sep = ""))
       } else {
         stop(paste("beta.normal[[2]] must be a vector of length ",
-	   p.occ, " or 1 with elements corresponding to betas' variance", sep = ""))
+                   p.occ, " or 1 with elements corresponding to betas' variance", sep = ""))
       }
     }
     if (length(sigma.beta) != p.occ) {
@@ -338,19 +339,19 @@ PGOcc <- function(occ.formula, det.formula, data, inits, priors,
     if (length(mu.alpha) != p.det & length(mu.alpha) != 1) {
       if (p.det == 1) {
         stop(paste("alpha.normal[[1]] must be a vector of length ",
-  	     p.det, " with elements corresponding to alphas' mean", sep = ""))
-} else {
+                   p.det, " with elements corresponding to alphas' mean", sep = ""))
+      } else {
         stop(paste("alpha.normal[[1]] must be a vector of length ",
-  	     p.det, " or 1 with elements corresponding to alphas' mean", sep = ""))
+                   p.det, " or 1 with elements corresponding to alphas' mean", sep = ""))
       }
     }
     if (length(sigma.alpha) != p.det & length(sigma.alpha) != 1) {
       if (p.det == 1) {
         stop(paste("alpha.normal[[2]] must be a vector of length ",
-	   p.det, " with elements corresponding to alphas' variance", sep = ""))
+                   p.det, " with elements corresponding to alphas' variance", sep = ""))
       } else {
         stop(paste("alpha.normal[[2]] must be a vector of length ",
-	   p.det, " or 1 with elements corresponding to alphas' variance", sep = ""))
+                   p.det, " or 1 with elements corresponding to alphas' variance", sep = ""))
       }
     }
     if (length(sigma.alpha) != p.det) {
@@ -378,29 +379,29 @@ PGOcc <- function(occ.formula, det.formula, data, inits, priors,
       sigma.sq.psi.b <- priors$sigma.sq.psi.ig[[2]]
       if (length(sigma.sq.psi.a) != p.occ.re & length(sigma.sq.psi.a) != 1) {
         if (p.occ.re == 1) {
-        stop(paste("sigma.sq.psi.ig[[1]] must be a vector of length ", 
-        	   p.occ.re, " with elements corresponding to sigma.sq.psis' shape", sep = ""))
-  } else {
-        stop(paste("sigma.sq.psi.ig[[1]] must be a vector of length ", 
-        	   p.occ.re, " or 1 with elements corresponding to sigma.sq.psis' shape", sep = ""))
+          stop(paste("sigma.sq.psi.ig[[1]] must be a vector of length ", 
+                     p.occ.re, " with elements corresponding to sigma.sq.psis' shape", sep = ""))
+        } else {
+          stop(paste("sigma.sq.psi.ig[[1]] must be a vector of length ", 
+                     p.occ.re, " or 1 with elements corresponding to sigma.sq.psis' shape", sep = ""))
         }
       }
       if (length(sigma.sq.psi.b) != p.occ.re & length(sigma.sq.psi.b) != 1) {
         if (p.occ.re == 1) {
           stop(paste("sigma.sq.psi.ig[[2]] must be a vector of length ", 
-        	   p.occ.re, " with elements corresponding to sigma.sq.psis' scale", sep = ""))
-  } else {
+                     p.occ.re, " with elements corresponding to sigma.sq.psis' scale", sep = ""))
+        } else {
           stop(paste("sigma.sq.psi.ig[[2]] must be a vector of length ", 
-        	   p.occ.re, " or 1with elements corresponding to sigma.sq.psis' scale", sep = ""))
+                     p.occ.re, " or 1with elements corresponding to sigma.sq.psis' scale", sep = ""))
         }
       }
-if (length(sigma.sq.psi.a) != p.occ.re) {
+      if (length(sigma.sq.psi.a) != p.occ.re) {
         sigma.sq.psi.a <- rep(sigma.sq.psi.a, p.occ.re)
       }
-if (length(sigma.sq.psi.b) != p.occ.re) {
+      if (length(sigma.sq.psi.b) != p.occ.re) {
         sigma.sq.psi.b <- rep(sigma.sq.psi.b, p.occ.re)
       }
-  }   else {
+    }   else {
       if (verbose) {	    
         message("No prior specified for sigma.sq.psi.ig.\nSetting prior shape to 0.1 and prior scale to 0.1\n")
       }
@@ -422,28 +423,28 @@ if (length(sigma.sq.psi.b) != p.occ.re) {
       if (length(sigma.sq.p.a) != p.det.re & length(sigma.sq.p.a) != 1) {
         if (p.det.re == 1) {
           stop(paste("sigma.sq.p.ig[[1]] must be a vector of length ", 
-        	   p.det.re, " with elements corresponding to sigma.sq.ps' shape", sep = ""))
-  } else {
+                     p.det.re, " with elements corresponding to sigma.sq.ps' shape", sep = ""))
+        } else {
           stop(paste("sigma.sq.p.ig[[1]] must be a vector of length ", 
-        	   p.det.re, " or 1 with elements corresponding to sigma.sq.ps' shape", sep = ""))
+                     p.det.re, " or 1 with elements corresponding to sigma.sq.ps' shape", sep = ""))
         }
       }
       if (length(sigma.sq.p.b) != p.det.re & length(sigma.sq.p.b) != 1) {
         if (p.det.re == 1) {
           stop(paste("sigma.sq.p.ig[[2]] must be a vector of length ", 
-        	     p.det.re, " with elements corresponding to sigma.sq.ps' scale", sep = ""))
-  } else {
+                     p.det.re, " with elements corresponding to sigma.sq.ps' scale", sep = ""))
+        } else {
           stop(paste("sigma.sq.p.ig[[2]] must be a vector of length ", 
-        	     p.det.re, " or 1 with elements corresponding to sigma.sq.ps' scale", sep = ""))
+                     p.det.re, " or 1 with elements corresponding to sigma.sq.ps' scale", sep = ""))
         }
       }
-if (length(sigma.sq.p.a) != p.det.re) {
+      if (length(sigma.sq.p.a) != p.det.re) {
         sigma.sq.p.a <- rep(sigma.sq.p.a, p.det.re)
       }
-if (length(sigma.sq.p.b) != p.det.re) {
+      if (length(sigma.sq.p.b) != p.det.re) {
         sigma.sq.p.b <- rep(sigma.sq.p.b, p.det.re)
       }
-  }   else {
+    }   else {
       if (verbose) {	    
         message("No prior specified for sigma.sq.p.ig.\nSetting prior shape to 0.1 and prior scale to 0.1\n")
       }
@@ -454,7 +455,7 @@ if (length(sigma.sq.p.b) != p.det.re) {
     sigma.sq.p.a <- 0
     sigma.sq.p.b <- 0
   }
-
+  
   # Starting values -----------------------------------------------------
   if (missing(inits)) {
     inits <- list()
@@ -465,11 +466,11 @@ if (length(sigma.sq.p.b) != p.det.re) {
     z.inits <- inits$z
     if (!is.vector(z.inits)) {
       stop(paste("initial values for z must be a vector of length ",
-	   J, sep = ""))
+                 J, sep = ""))
     }
     if (length(z.inits) != J) {
       stop(paste("initial values for z must be a vector of length ",
-	   J, sep = ""))
+                 J, sep = ""))
     }
     z.test <- apply(y.big, 1, max, na.rm = TRUE)
     init.test <- sum(z.inits < z.test)
@@ -490,11 +491,11 @@ if (length(sigma.sq.p.b) != p.det.re) {
     if (length(beta.inits) != p.occ & length(beta.inits) != 1) {
       if (p.occ == 1) {
         stop(paste("initial values for beta must be of length ", p.occ,
-	     sep = ""))
-
+                   sep = ""))
+        
       } else {
         stop(paste("initial values for beta must be of length ", p.occ, " or 1",
-  	     sep = ""))
+                   sep = ""))
       }
     }
     if (length(beta.inits) != p.occ) {
@@ -511,11 +512,11 @@ if (length(sigma.sq.p.b) != p.det.re) {
     alpha.inits <- inits[["alpha"]]
     if (length(alpha.inits) != p.det & length(alpha.inits) != 1) {
       if (p.det == 1) {
-      stop(paste("initial values for alpha must be of length ", p.det,
-	   sep = ""))
-} else {
+        stop(paste("initial values for alpha must be of length ", p.det,
+                   sep = ""))
+      } else {
         stop(paste("initial values for alpha must be of length ", p.det, " or 1",
-	     sep = ""))
+                   sep = ""))
       }
     }
     if (length(alpha.inits) != p.det) {
@@ -527,7 +528,7 @@ if (length(sigma.sq.p.b) != p.det.re) {
       message("alpha is not specified in initial values.\nSetting initial values to random values from the prior distribution\n")
     }
   }
-
+  
   # sigma.sq.psi -------------------
   if (p.occ.re > 0) {
     if ("sigma.sq.psi" %in% names(inits)) {
@@ -535,13 +536,13 @@ if (length(sigma.sq.p.b) != p.det.re) {
       if (length(sigma.sq.psi.inits) != p.occ.re & length(sigma.sq.psi.inits) != 1) {
         if (p.occ.re == 1) {
           stop(paste("initial values for sigma.sq.psi must be of length ", p.occ.re, 
-	       sep = ""))
-  } else {
+                     sep = ""))
+        } else {
           stop(paste("initial values for sigma.sq.psi must be of length ", p.occ.re, 
-	       " or 1", sep = ""))
+                     " or 1", sep = ""))
         }
       }
-if (length(sigma.sq.psi.inits) != p.occ.re) {
+      if (length(sigma.sq.psi.inits) != p.occ.re) {
         sigma.sq.psi.inits <- rep(sigma.sq.psi.inits, p.occ.re)
       }
     } else {
@@ -564,14 +565,14 @@ if (length(sigma.sq.psi.inits) != p.occ.re) {
       if (length(sigma.sq.p.inits) != p.det.re & length(sigma.sq.p.inits) != 1) {
         if (p.det.re == 1) {
           stop(paste("initial values for sigma.sq.p must be of length ", p.det.re, 
-	     sep = ""))
-  } else {
+                     sep = ""))
+        } else {
           stop(paste("initial values for sigma.sq.p must be of length ", p.det.re, 
-	       " or 1", sep = ""))
+                     " or 1", sep = ""))
           
         }
       }
-if (length(sigma.sq.p.inits) != p.det.re) {
+      if (length(sigma.sq.p.inits) != p.det.re) {
         sigma.sq.p.inits <- rep(sigma.sq.p.inits, p.det.re)
       }
     } else {
@@ -599,7 +600,7 @@ if (length(sigma.sq.p.inits) != p.det.re) {
   if (verbose & fix.inits & (n.chains > 1)) {
     message("Fixing initial values across all chains\n")
   }
-
+  
   curr.chain <- 1
   # Set storage for all variables ---------------------------------------
   storage.mode(y) <- "double"
@@ -623,8 +624,8 @@ if (length(sigma.sq.p.inits) != p.det.re) {
   chain.info <- c(curr.chain, n.chains)
   storage.mode(chain.info) <- "integer"
   n.post.samples <- length(seq(from = n.burn + 1, 
-			 to = n.samples, 
-			 by = as.integer(n.thin)))
+                               to = n.samples, 
+                               by = as.integer(n.thin)))
   storage.mode(n.post.samples) <- "integer"
   samples.info <- c(n.burn, n.thin, n.post.samples)
   storage.mode(samples.info) <- "integer"
@@ -647,7 +648,7 @@ if (length(sigma.sq.p.inits) != p.det.re) {
   storage.mode(sigma.sq.psi.b) <- "double"
   storage.mode(beta.star.inits) <- "double"
   storage.mode(beta.star.indx) <- "integer"
-
+  
   # Fit the model -------------------------------------------------------
   out.tmp <- list()
   out <- list()
@@ -669,13 +670,13 @@ if (length(sigma.sq.p.inits) != p.det.re) {
       storage.mode(chain.info) <- "integer"
       # Run the model in C
       out.tmp[[i]] <- .Call("PGOcc", y, X, X.p, X.re, X.p.re, consts, 
-        		    K, n.occ.re.long, n.det.re.long, beta.inits, alpha.inits, 
-        		    sigma.sq.psi.inits, sigma.sq.p.inits, beta.star.inits, 
-        		    alpha.star.inits, z.inits, z.long.indx, beta.star.indx, 
-        		    beta.level.indx, alpha.star.indx, alpha.level.indx, mu.beta, 
-        		    mu.alpha, Sigma.beta, Sigma.alpha, sigma.sq.psi.a, sigma.sq.psi.b, 
-        		    sigma.sq.p.a, sigma.sq.p.b, n.samples, n.omp.threads, verbose, 
-        		    n.report, samples.info, chain.info)
+                            K, n.occ.re.long, n.det.re.long, beta.inits, alpha.inits, 
+                            sigma.sq.psi.inits, sigma.sq.p.inits, beta.star.inits, 
+                            alpha.star.inits, z.inits, z.long.indx, beta.star.indx, 
+                            beta.level.indx, alpha.star.indx, alpha.level.indx, mu.beta, 
+                            mu.alpha, Sigma.beta, Sigma.alpha, sigma.sq.psi.a, sigma.sq.psi.b, 
+                            sigma.sq.p.a, sigma.sq.p.b, n.samples, n.omp.threads, verbose, 
+                            n.report, samples.info, chain.info)
       chain.info[1] <- chain.info[1] + 1
     } # i   
     # Calculate R-Hat ---------------
@@ -684,20 +685,20 @@ if (length(sigma.sq.p.inits) != p.det.re) {
     if (n.chains > 1) {
       # as.vector removes the "Upper CI" when there is only 1 variable. 
       out$rhat$beta <- as.vector(gelman.diag(mcmc.list(lapply(out.tmp, function(a) 
-      					      mcmc(t(a$beta.samples)))), 
-      			     autoburnin = FALSE, multivariate = FALSE)$psrf[, 2])
+        mcmc(t(a$beta.samples)))), 
+        autoburnin = FALSE, multivariate = FALSE)$psrf[, 2])
       out$rhat$alpha <- as.vector(gelman.diag(mcmc.list(lapply(out.tmp, function(a) 
-      					      mcmc(t(a$alpha.samples)))), 
-      			      autoburnin = FALSE, multivariate = FALSE)$psrf[, 2])
+        mcmc(t(a$alpha.samples)))), 
+        autoburnin = FALSE, multivariate = FALSE)$psrf[, 2])
       if (p.det.re > 0) {
-      out$rhat$sigma.sq.p <- as.vector(gelman.diag(mcmc.list(lapply(out.tmp, function(a) 
-      					      mcmc(t(a$sigma.sq.p.samples)))), 
-      			     autoburnin = FALSE, multivariate = FALSE)$psrf[, 2])
+        out$rhat$sigma.sq.p <- as.vector(gelman.diag(mcmc.list(lapply(out.tmp, function(a) 
+          mcmc(t(a$sigma.sq.p.samples)))), 
+          autoburnin = FALSE, multivariate = FALSE)$psrf[, 2])
       }
       if (p.occ.re > 0) {
-      out$rhat$sigma.sq.psi <- as.vector(gelman.diag(mcmc.list(lapply(out.tmp, function(a) 
-      					      mcmc(t(a$sigma.sq.psi.samples)))), 
-      			     autoburnin = FALSE, multivariate = FALSE)$psrf[, 2])
+        out$rhat$sigma.sq.psi <- as.vector(gelman.diag(mcmc.list(lapply(out.tmp, function(a) 
+          mcmc(t(a$sigma.sq.psi.samples)))), 
+          autoburnin = FALSE, multivariate = FALSE)$psrf[, 2])
       }
     } else {
       out$rhat$beta <- rep(NA, p.occ)
@@ -713,7 +714,7 @@ if (length(sigma.sq.p.inits) != p.det.re) {
     out$beta.samples <- mcmc(do.call(rbind, lapply(out.tmp, function(a) t(a$beta.samples))))
     colnames(out$beta.samples) <- x.names
     out$alpha.samples <- mcmc(do.call(rbind, 
-      				lapply(out.tmp, function(a) t(a$alpha.samples))))
+                                      lapply(out.tmp, function(a) t(a$alpha.samples))))
     colnames(out$alpha.samples) <- x.p.names
     out$z.samples <- mcmc(do.call(rbind, lapply(out.tmp, function(a) t(a$z.samples))))
     out$psi.samples <- mcmc(do.call(rbind, lapply(out.tmp, function(a) t(a$psi.samples))))
@@ -779,19 +780,56 @@ if (length(sigma.sq.p.inits) != p.det.re) {
       cat("\tCross-validation\n");
       cat("----------------------------------------\n");
       message(paste("Performing ", k.fold, "-fold cross-validation using ", k.fold.threads,
-      	        " thread(s).", sep = ''))
+                    " thread(s).", sep = ''))
     }
-    set.seed(k.fold.seed)
-    # Number of sites in each hold out data set. 
-    sites.random <- sample(1:J)    
-    sites.k.fold <- split(sites.random, sites.random %% k.fold)
+    
+    if (!requireNamespace("pROC", quietly = TRUE)) {
+      warning("Package 'pROC' not found. AUC will not be calculated. Install with: install.packages('pROC')")
+      calculate.auc <- FALSE
+    } else {
+      calculate.auc <- TRUE
+    }
+    
+    # Modified part: Use custom clustering if provided, otherwise use random assignment
+    if (!is.null(custom.cluster)) {
+      # Verify that custom.cluster has the correct length
+      if (length(custom.cluster) != J) {
+        stop("custom.cluster must have length equal to the number of sites")
+      }
+      # Verify that custom.cluster has values from 1 to k.fold
+      if (min(custom.cluster) < 1 || max(custom.cluster) > k.fold) {
+        stop("custom.cluster must contain values from 1 to k.fold")
+      }
+      
+      # Use the custom cluster assignments directly
+      sites.k.fold <- list()
+      for (i in 1:k.fold) {
+        sites.k.fold[[i]] <- which(custom.cluster == i)
+      }
+      
+      if (verbose) {
+        message("Using custom cluster assignments for cross-validation")
+      }
+    } else {
+      # Original random assignment code
+      set.seed(k.fold.seed)
+      # Number of sites in each hold out data set. 
+      sites.random <- sample(1:J)    
+      sites.k.fold <- split(sites.random, sites.random %% k.fold)
+      
+      if (verbose) {
+        message("Using random assignment for cross-validation")
+      }
+    }
+    
     registerDoParallel(k.fold.threads)
-    model.deviance <- foreach (i = 1:k.fold, .combine = sum) %dopar% {
-      curr.set <- sort(sites.random[sites.k.fold[[i]]])
+    
+    cv.metrics <- foreach (i = 1:k.fold, .combine = 'rbind') %dopar% {
+      curr.set <- sort(sites.k.fold[[i]])
       if (binom) {
         y.indx <- !(1:J %in% curr.set)
       } else {
-      y.indx <- !((z.long.indx + 1) %in% curr.set)
+        y.indx <- !((z.long.indx + 1) %in% curr.set)
       }
       y.fit <- y[y.indx]
       y.0 <- y[!y.indx]
@@ -818,7 +856,7 @@ if (length(sigma.sq.p.inits) != p.det.re) {
         alpha.star.indx.fit <- rep(0:(p.det.re - 1), n.det.re.long.fit)
         alpha.level.indx.fit <- sort(unique(c(X.p.re.fit)))
         alpha.star.inits.fit <- rnorm(n.det.re.fit, 0,
-        			      sqrt(sigma.sq.p.inits[alpha.star.indx.fit + 1]))
+                                      sqrt(sigma.sq.p.inits[alpha.star.indx.fit + 1]))
         p.re.level.names.fit <- list()
         for (t in 1:p.det.re) {
           tmp.indx <- alpha.level.indx.fit[alpha.star.indx.fit == t - 1]
@@ -838,7 +876,7 @@ if (length(sigma.sq.p.inits) != p.det.re) {
         beta.star.indx.fit <- rep(0:(p.occ.re - 1), n.occ.re.long.fit)
         beta.level.indx.fit <- sort(unique(c(X.re.fit)))
         beta.star.inits.fit <- rnorm(n.occ.re.fit, 0,
-        			      sqrt(sigma.sq.psi.inits[beta.star.indx.fit + 1]))
+                                     sqrt(sigma.sq.psi.inits[beta.star.indx.fit + 1]))
         re.level.names.fit <- list()
         for (t in 1:p.occ.re) {
           tmp.indx <- beta.level.indx.fit[beta.star.indx.fit == t - 1]
@@ -862,7 +900,7 @@ if (length(sigma.sq.p.inits) != p.det.re) {
         z.long.indx.fit <- 0:(J.fit - 1)
         z.0.long.indx <- 1:J.0
       }
-
+      
       verbose.fit <- FALSE
       n.omp.threads.fit <- 1
       storage.mode(y.fit) <- "double"
@@ -892,13 +930,13 @@ if (length(sigma.sq.p.inits) != p.det.re) {
       storage.mode(chain.info) <- "integer"
       # Run the model in C
       out.fit <- .Call("PGOcc", y.fit, X.fit, X.p.fit, X.re.fit, X.p.re.fit, consts.fit, 
-		  K.fit, n.occ.re.long.fit, n.det.re.long.fit, beta.inits, alpha.inits, 
-		  sigma.sq.psi.inits, sigma.sq.p.inits, beta.star.inits.fit, 
-		  alpha.star.inits.fit, z.inits.fit, z.long.indx.fit, beta.star.indx.fit, 
-		  beta.level.indx.fit, alpha.star.indx.fit, alpha.level.indx.fit, mu.beta, 
-		  mu.alpha, Sigma.beta, Sigma.alpha, sigma.sq.psi.a, sigma.sq.psi.b, 
-		  sigma.sq.p.a, sigma.sq.p.b, n.samples, n.omp.threads.fit, verbose.fit, 
-		  n.report, samples.info, chain.info)
+                       K.fit, n.occ.re.long.fit, n.det.re.long.fit, beta.inits, alpha.inits, 
+                       sigma.sq.psi.inits, sigma.sq.p.inits, beta.star.inits.fit, 
+                       alpha.star.inits.fit, z.inits.fit, z.long.indx.fit, beta.star.indx.fit, 
+                       beta.level.indx.fit, alpha.star.indx.fit, alpha.level.indx.fit, mu.beta, 
+                       mu.alpha, Sigma.beta, Sigma.alpha, sigma.sq.psi.a, sigma.sq.psi.b, 
+                       sigma.sq.p.a, sigma.sq.p.b, n.samples, n.omp.threads.fit, verbose.fit, 
+                       n.report, samples.info, chain.info)
       out.fit$beta.samples <- mcmc(t(out.fit$beta.samples))
       colnames(out.fit$beta.samples) <- x.names
       out.fit$alpha.samples <- mcmc(t(out.fit$alpha.samples))
@@ -943,18 +981,18 @@ if (length(sigma.sq.p.inits) != p.det.re) {
         out.fit$psiRE <- FALSE	
       }
       class(out.fit) <- "PGOcc"
-
+      
       # Get RE levels correct for when they aren't supplied at values starting at 1.
       if (p.occ.re > 0) {
         tmp <- unlist(re.level.names)
         X.re.0 <- matrix(tmp[c(X.re.0 + 1)], nrow(X.re.0), ncol(X.re.0))
         colnames(X.re.0) <- x.re.names
       }
-
+      
       # Predict occurrence at new sites
       if (p.occ.re > 0) {X.0 <- cbind(X.0, X.re.0)}
       out.pred <- predict.PGOcc(out.fit, X.0)
-
+      
       # Detection 
       # Generate detection values
       # Get RE levels correct for when they aren't supplied at values starting at 1.
@@ -965,27 +1003,77 @@ if (length(sigma.sq.p.inits) != p.det.re) {
       }
       if (p.det.re > 0) {X.p.0 <- cbind(X.p.0, X.p.re.0)}
       out.p.pred <- predict.PGOcc(out.fit, X.p.0, type = 'detection')
+      
       if (binom) {
         like.samples <- matrix(NA, nrow(y.big.0), ncol(y.big.0))
         for (j in 1:nrow(X.p.0)) {
           for (k in rep.indx.0[[j]]) {
             like.samples[j, k] <- mean(dbinom(y.big.0[j, k], 1,
-              out.p.pred$p.0.samples[, j] * out.pred$z.0.samples[, z.0.long.indx[j]]))
+                                              out.p.pred$p.0.samples[, j] * out.pred$z.0.samples[, z.0.long.indx[j]]))
           }
         }
       } else {
         like.samples <- rep(NA, nrow(X.p.0))
         for (j in 1:nrow(X.p.0)) {
           like.samples[j] <- mean(dbinom(y.0[j], 1, 
-          out.p.pred$p.0.samples[, j] * out.pred$z.0.samples[, z.0.long.indx[j]]))
+                                         out.p.pred$p.0.samples[, j] * out.pred$z.0.samples[, z.0.long.indx[j]]))
         }
       }
-      sum(log(like.samples), na.rm = TRUE)
+      
+      fold.deviance <- -2 * sum(log(like.samples), na.rm = TRUE)
+      
+      # Calculate additional metrics
+      fold.metrics <- list()
+      fold.metrics$deviance <- fold.deviance
+      
+      # Calculate AUC and other metrics
+      pred.probs <- colMeans(out.pred$z.0.samples)
+      obs.occ <- apply(y.big.0, 1, max, na.rm = TRUE)
+      obs.occ[obs.occ == -Inf] <- NA
+      valid.sites <- !is.na(obs.occ)
+      
+      if (sum(valid.sites) > 0 && length(unique(obs.occ[valid.sites])) > 1) {
+        if (calculate.auc) {
+          fold.metrics$auc <- pROC::auc(obs.occ[valid.sites], pred.probs[valid.sites], quiet = TRUE)
+          fold.metrics$brier <- mean((pred.probs[valid.sites] - obs.occ[valid.sites])^2)
+          eps <- 1e-10
+          pred.probs.bounded <- pmax(pmin(pred.probs[valid.sites], 1 - eps), eps)
+          fold.metrics$log.score <- -mean(obs.occ[valid.sites] * log(pred.probs.bounded) + 
+                                            (1 - obs.occ[valid.sites]) * log(1 - pred.probs.bounded))
+          mean.1 <- mean(pred.probs[valid.sites][obs.occ[valid.sites] == 1])
+          mean.0 <- mean(pred.probs[valid.sites][obs.occ[valid.sites] == 0])
+          fold.metrics$tjur.r2 <- mean.1 - mean.0
+        }
+        fold.metrics$rmse <- sqrt(mean((pred.probs[valid.sites] - obs.occ[valid.sites])^2))
+        fold.metrics$mae <- mean(abs(pred.probs[valid.sites] - obs.occ[valid.sites]))
+      } else {
+        if (calculate.auc) {
+          fold.metrics$auc <- NA
+          fold.metrics$brier <- NA
+          fold.metrics$log.score <- NA
+          fold.metrics$tjur.r2 <- NA
+        }
+        fold.metrics$rmse <- NA
+        fold.metrics$mae <- NA
+      }
+      
+      fold.metrics
     }
-    model.deviance <- -2 * model.deviance
-    # Return objects from cross-validation
-    out$k.fold.deviance <- model.deviance
+    
     stopImplicitCluster()
+    
+    # Aggregate results
+    out$k.fold.deviance <- sum(sapply(cv.metrics[, "deviance"], function(x) x[[1]]))
+    
+    if (calculate.auc) {
+      out$k.fold.auc <- mean(sapply(cv.metrics[, "auc"], function(x) x[[1]]), na.rm = TRUE)
+      out$k.fold.brier <- mean(sapply(cv.metrics[, "brier"], function(x) x[[1]]), na.rm = TRUE)
+      out$k.fold.log.score <- mean(sapply(cv.metrics[, "log.score"], function(x) x[[1]]), na.rm = TRUE)
+      out$k.fold.tjur.r2 <- mean(sapply(cv.metrics[, "tjur.r2"], function(x) x[[1]]), na.rm = TRUE)
+    }
+    
+    out$k.fold.rmse <- mean(sapply(cv.metrics[, "rmse"], function(x) x[[1]]), na.rm = TRUE)
+    out$k.fold.mae <- mean(sapply(cv.metrics[, "mae"], function(x) x[[1]]), na.rm = TRUE)
   }
   class(out) <- "PGOcc"
   out$run.time <- proc.time() - ptm

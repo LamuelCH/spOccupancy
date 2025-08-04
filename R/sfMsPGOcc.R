@@ -9,15 +9,15 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
                       k.fold.seed = 100, k.fold.only = FALSE,
                       # New parameter for custom cluster assignments
                       custom.cluster = NULL, ...){
-
+  
   ptm <- proc.time()
-
+  
   logit <- function(theta, a = 0, b = 1) {log((theta-a)/(b-theta))}
   logit.inv <- function(z, a = 0, b = 1) {b-(b-a)/(1+exp(z))}
   rigamma <- function(n, a, b){
     1/rgamma(n = n, shape = a, rate = b)
   }
-    
+  
   # Make it look nice
   if (verbose) {
     cat("----------------------------------------\n");
@@ -28,14 +28,14 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
   formal.args <- names(formals(sys.function(sys.parent())))
   elip.args <- names(list(...))
   for(i in elip.args){
-      if(! i %in% formal.args)
-          warning("'",i, "' is not an argument")
+    if(! i %in% formal.args)
+      warning("'",i, "' is not an argument")
   }
   # Call ----------------------------------------------------------------
   # Returns a call in which all of the specified arguments are 
   # specified by their full names. 
   cl <- match.call()
-
+  
   # Some initial checks -------------------------------------------------
   # Only implemented for NNGP
   if (!NNGP) {
@@ -108,7 +108,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
   if (missing(n.factors)) {
     stop("error: n.factors must be specified for a spatial factor occupancy model")
   }
-
+  
   # Neighbors and Ordering ----------------------------------------------
   if (NNGP) {
     u.search.type <- 2 
@@ -132,7 +132,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       }
     }
   }
-
+  
   # First subset detection covariates to only use those that are included in the analysis. 
   data$det.covs <- data$det.covs[names(data$det.covs) %in% all.vars(det.formula)]
   # Null model support
@@ -147,12 +147,12 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
   # if necessary
   y.big <- y
   if (nrow(data$det.covs) == dim(y)[2]) {
-   # Convert data to binomial form
-   y <- apply(y, c(1, 2), sum, na.rm = TRUE) 
-   binom <- TRUE
+    # Convert data to binomial form
+    y <- apply(y, c(1, 2), sum, na.rm = TRUE) 
+    binom <- TRUE
   }
   data$occ.covs <- as.data.frame(data$occ.covs)
-
+  
   # Checking missing values ---------------------------------------------
   # y -------------------------------
   y.na.test <- apply(y.big, c(1, 2), function(a) sum(!is.na(a)))
@@ -190,7 +190,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       stop("error: missing values in site-level det.covs. Please remove these sites from all objects in data or somehow replace the NA values with non-missing values (e.g., mean imputation).") 
     }
   }
-
+  
   # Check whether random effects are sent in as numeric, and
   # return error if they are. 
   # Occurrence ----------------------
@@ -217,13 +217,13 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       }
     }
   }
-
+  
   # Formula -------------------------------------------------------------
   # Occupancy -----------------------
   if (missing(occ.formula)) {
     stop("error: occ.formula must be specified")
   }
-
+  
   if (is(occ.formula, 'formula')) {
     tmp <- parseFormula(occ.formula, data$occ.covs)
     X <- as.matrix(tmp[[1]])
@@ -235,13 +235,13 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
   }
   # Get RE level names
   re.level.names <- lapply(data$occ.covs[, x.re.names, drop = FALSE],
-			   function (a) sort(unique(a)))
-
+                           function (a) sort(unique(a)))
+  
   # Detection -----------------------
   if (missing(det.formula)) {
     stop("error: det.formula must be specified")
   }
-
+  
   if (is(det.formula, 'formula')) {
     tmp <- parseFormula(det.formula, data$det.covs)
     X.p <- as.matrix(tmp[[1]])
@@ -252,8 +252,8 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     stop("error: det.formula is misspecified")
   }
   p.re.level.names <- lapply(data$det.covs[, x.p.re.names, drop = FALSE],
-			     function (a) sort(unique(a)))
-
+                             function (a) sort(unique(a)))
+  
   # Extract data from inputs --------------------------------------------
   # Number of species 
   N <- dim(y)[1]
@@ -309,7 +309,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       stop("error: k.fold must be a single integer value >= 2")  
     }
   }
-
+  
   # Get indices to map z to y -------------------------------------------
   if (!binom) {
     z.long.indx <- rep(1:J, dim(y.big)[3])
@@ -341,7 +341,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
   y <- y[!is.na(y)]
   # Number of pseudoreplicates
   n.obs <- nrow(X.p)
-
+  
   # Get random effect matrices all set ----------------------------------
   if (p.occ.re > 1) {
     for (j in 2:p.occ.re) {
@@ -353,13 +353,13 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       X.p.re[, j] <- X.p.re[, j] + max(X.p.re[, j - 1]) + 1
     }
   }
-
+  
   # Priors --------------------------------------------------------------
   if (missing(priors)) {
     priors <- list()
   }
   names(priors) <- tolower(names(priors))
-
+  
   # beta.comm -----------------------
   if ("beta.comm.normal" %in% names(priors)) {
     if (!is.list(priors$beta.comm.normal) | length(priors$beta.comm.normal) != 2) {
@@ -370,19 +370,19 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     if (length(mu.beta.comm) != p.occ & length(mu.beta.comm) != 1) {
       if (p.occ == 1) {
         stop(paste("error: beta.comm.normal[[1]] must be a vector of length ",
-        	     p.occ, " with elements corresponding to beta.comms' mean", sep = ""))
+                   p.occ, " with elements corresponding to beta.comms' mean", sep = ""))
       } else {
         stop(paste("error: beta.comm.normal[[1]] must be a vector of length ",
-        	     p.occ, " or 1 with elements corresponding to beta.comms' mean", sep = ""))
+                   p.occ, " or 1 with elements corresponding to beta.comms' mean", sep = ""))
       }
     }
     if (length(sigma.beta.comm) != p.occ & length(sigma.beta.comm) != 1) {
       if (p.occ == 1) {
         stop(paste("error: beta.comm.normal[[2]] must be a vector of length ",
-      	   p.occ, " with elements corresponding to beta.comms' variance", sep = ""))
+                   p.occ, " with elements corresponding to beta.comms' variance", sep = ""))
       } else {
         stop(paste("error: beta.comm.normal[[2]] must be a vector of length ",
-      	   p.occ, " or 1 with elements corresponding to beta.comms' variance", sep = ""))
+                   p.occ, " or 1 with elements corresponding to beta.comms' variance", sep = ""))
       }
     }
     if (length(sigma.beta.comm) != p.occ) {
@@ -400,7 +400,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     sigma.beta.comm <- rep(2.72, p.occ)
     Sigma.beta.comm <- diag(p.occ) * 2.72
   }
-
+  
   # alpha.comm -----------------------
   if ("alpha.comm.normal" %in% names(priors)) {
     if (!is.list(priors$alpha.comm.normal) | length(priors$alpha.comm.normal) != 2) {
@@ -411,19 +411,19 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     if (length(mu.alpha.comm) != p.det & length(mu.alpha.comm) != 1) {
       if (p.det == 1) {
         stop(paste("error: alpha.comm.normal[[1]] must be a vector of length ",
-        	     p.det, " with elements corresponding to alpha.comms' mean", sep = ""))
+                   p.det, " with elements corresponding to alpha.comms' mean", sep = ""))
       } else {
         stop(paste("error: alpha.comm.normal[[1]] must be a vector of length ",
-        	     p.det, " or 1 with elements corresponding to alpha.comms' mean", sep = ""))
+                   p.det, " or 1 with elements corresponding to alpha.comms' mean", sep = ""))
       }
     }
     if (length(sigma.alpha.comm) != p.det & length(sigma.alpha.comm) != 1) {
       if (p.det == 1) {
         stop(paste("error: alpha.comm.normal[[2]] must be a vector of length ",
-      	   p.det, " with elements corresponding to alpha.comms' variance", sep = ""))
+                   p.det, " with elements corresponding to alpha.comms' variance", sep = ""))
       } else {
         stop(paste("error: alpha.comm.normal[[2]] must be a vector of length ",
-      	   p.det, " or 1 with elements corresponding to alpha.comms' variance", sep = ""))
+                   p.det, " or 1 with elements corresponding to alpha.comms' variance", sep = ""))
       }
     }
     if (length(sigma.alpha.comm) != p.det) {
@@ -441,7 +441,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     sigma.alpha.comm <- rep(2.72, p.det)
     Sigma.alpha.comm <- diag(p.det) * 2.72
   }
-
+  
   # tau.sq.beta -----------------------
   if ("tau.sq.beta.ig" %in% names(priors) & "tau.beta.half.t" %in% names(priors)) {
     stop("you must specify either an inverse gamma prior for tau.sq.beta or a half-t prior for tau.beta, not both.")
@@ -456,19 +456,19 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     if (length(tau.sq.beta.a) != p.occ & length(tau.sq.beta.a) != 1) {
       if (p.occ == 1) {
         stop(paste("error: tau.beta.half.t[[1]] must be a vector of length ", 
-      	   p.occ, " with elements corresponding to tau.beta's df", sep = ""))
+                   p.occ, " with elements corresponding to tau.beta's df", sep = ""))
       } else {
         stop(paste("error: tau.beta.half.t[[1]] must be a vector of length ", 
-      	   p.occ, " or 1 with elements corresponding to tau.beta's df", sep = ""))
+                   p.occ, " or 1 with elements corresponding to tau.beta's df", sep = ""))
       }
     }
     if (length(tau.sq.beta.b) != p.occ & length(tau.sq.beta.b) != 1) {
       if (p.occ == 1) {
         stop(paste("error: tau.beta.half.t[[2]] must be a vector of length ", 
-      	   p.occ, " with elements corresponding to tau.beta's scale", sep = ""))
+                   p.occ, " with elements corresponding to tau.beta's scale", sep = ""))
       } else {
         stop(paste("error: tau.beta.half.t[[2]] must be a vector of length ", 
-      	   p.occ, " or 1 with elements corresponding to tau.beta's scale", sep = ""))
+                   p.occ, " or 1 with elements corresponding to tau.beta's scale", sep = ""))
       }
     }
     if (length(tau.sq.beta.a) != p.occ) {
@@ -478,7 +478,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       tau.sq.beta.b <- rep(tau.sq.beta.b, p.occ)
     }
   } 
-
+  
   if ("tau.sq.beta.ig" %in% names(priors)) {
     tau.sq.beta.ig <- TRUE
     if (!is.list(priors$tau.sq.beta.ig) | length(priors$tau.sq.beta.ig) != 2) {
@@ -489,19 +489,19 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     if (length(tau.sq.beta.a) != p.occ & length(tau.sq.beta.a) != 1) {
       if (p.occ == 1) {
         stop(paste("error: tau.sq.beta.ig[[1]] must be a vector of length ", 
-      	   p.occ, " with elements corresponding to tau.sq.betas' shape", sep = ""))
+                   p.occ, " with elements corresponding to tau.sq.betas' shape", sep = ""))
       } else {
         stop(paste("error: tau.sq.beta.ig[[1]] must be a vector of length ", 
-      	   p.occ, " or 1 with elements corresponding to tau.sq.betas' shape", sep = ""))
+                   p.occ, " or 1 with elements corresponding to tau.sq.betas' shape", sep = ""))
       }
     }
     if (length(tau.sq.beta.b) != p.occ & length(tau.sq.beta.b) != 1) {
       if (p.occ == 1) {
         stop(paste("error: tau.sq.beta.ig[[2]] must be a vector of length ", 
-      	   p.occ, " with elements corresponding to tau.sq.betas' scale", sep = ""))
+                   p.occ, " with elements corresponding to tau.sq.betas' scale", sep = ""))
       } else {
         stop(paste("error: tau.sq.beta.ig[[2]] must be a vector of length ", 
-      	   p.occ, " or 1 with elements corresponding to tau.sq.betas' scale", sep = ""))
+                   p.occ, " or 1 with elements corresponding to tau.sq.betas' scale", sep = ""))
       }
     }
     if (length(tau.sq.beta.a) != p.occ) {
@@ -534,19 +534,19 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     if (length(tau.sq.alpha.a) != p.det & length(tau.sq.alpha.a) != 1) {
       if (p.det == 1) {
         stop(paste("error: tau.alpha.half.t[[1]] must be a vector of length ", 
-      	   p.det, " with elements corresponding to tau.alpha's df", sep = ""))
+                   p.det, " with elements corresponding to tau.alpha's df", sep = ""))
       } else {
         stop(paste("error: tau.alpha.half.t[[1]] must be a vector of length ", 
-      	   p.det, " or 1 with elements corresponding to tau.alpha's df", sep = ""))
+                   p.det, " or 1 with elements corresponding to tau.alpha's df", sep = ""))
       }
     }
     if (length(tau.sq.alpha.b) != p.det & length(tau.sq.alpha.b) != 1) {
       if (p.det == 1) {
         stop(paste("error: tau.alpha.half.t[[2]] must be a vector of length ", 
-      	   p.det, " with elements corresponding to tau.alpha's scale", sep = ""))
+                   p.det, " with elements corresponding to tau.alpha's scale", sep = ""))
       } else {
         stop(paste("error: tau.alpha.half.t[[2]] must be a vector of length ", 
-      	   p.det, " or 1 with elements corresponding to tau.alpha's scale", sep = ""))
+                   p.det, " or 1 with elements corresponding to tau.alpha's scale", sep = ""))
       }
     }
     if (length(tau.sq.alpha.a) != p.det) {
@@ -556,7 +556,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       tau.sq.alpha.b <- rep(tau.sq.alpha.b, p.det)
     }
   } 
-
+  
   if ("tau.sq.alpha.ig" %in% names(priors)) {
     tau.sq.alpha.ig <- TRUE
     if (!is.list(priors$tau.sq.alpha.ig) | length(priors$tau.sq.alpha.ig) != 2) {
@@ -567,19 +567,19 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     if (length(tau.sq.alpha.a) != p.det & length(tau.sq.alpha.a) != 1) {
       if (p.det == 1) {
         stop(paste("error: tau.sq.alpha.ig[[1]] must be a vector of length ", 
-      	   p.det, " with elements corresponding to tau.sq.alphas' shape", sep = ""))
+                   p.det, " with elements corresponding to tau.sq.alphas' shape", sep = ""))
       } else {
         stop(paste("error: tau.sq.alpha.ig[[1]] must be a vector of length ", 
-      	   p.det, " or 1 with elements corresponding to tau.sq.alphas' shape", sep = ""))
+                   p.det, " or 1 with elements corresponding to tau.sq.alphas' shape", sep = ""))
       }
     }
     if (length(tau.sq.alpha.b) != p.det & length(tau.sq.alpha.b) != 1) {
       if (p.det == 1) {
         stop(paste("error: tau.sq.alpha.ig[[2]] must be a vector of length ", 
-      	   p.det, " with elements corresponding to tau.sq.alphas' scale", sep = ""))
+                   p.det, " with elements corresponding to tau.sq.alphas' scale", sep = ""))
       } else {
         stop(paste("error: tau.sq.alpha.ig[[2]] must be a vector of length ", 
-      	   p.det, " or 1 with elements corresponding to tau.sq.alphas' scale", sep = ""))
+                   p.det, " or 1 with elements corresponding to tau.sq.alphas' scale", sep = ""))
       }
     }
     if (length(tau.sq.alpha.a) != p.det) {
@@ -597,7 +597,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     tau.sq.alpha.b <- rep(0.1, p.det)
     tau.sq.alpha.ig <- TRUE
   }
-
+  
   # phi -----------------------------
   if (!NNGP) {
     coords.D <- iDist(coords)
@@ -611,11 +611,11 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     phi.b <- priors$phi.unif[[2]]
     if (length(phi.a) != q & length(phi.a) != 1) {
       stop(paste("error: phi.unif[[1]] must be a vector of length ", 
-      	   q, " or 1 with elements corresponding to phis' lower bound for each latent factor", sep = ""))
+                 q, " or 1 with elements corresponding to phis' lower bound for each latent factor", sep = ""))
     }
     if (length(phi.b) != q & length(phi.b) != 1) {
       stop(paste("error: phi.unif[[2]] must be a vector of length ", 
-      	   q, " or 1 with elements corresponding to phis' upper bound for each latent factor", sep = ""))
+                 q, " or 1 with elements corresponding to phis' upper bound for each latent factor", sep = ""))
     }
     if (length(phi.a) != q) {
       phi.a <- rep(phi.a, q)
@@ -625,7 +625,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     }
   } else {
     if (verbose) {
-    message("No prior specified for phi.unif.\nSetting uniform bounds based on the range of observed spatial coordinates.\n")
+      message("No prior specified for phi.unif.\nSetting uniform bounds based on the range of observed spatial coordinates.\n")
     }
     if (NNGP) {
       coords.D <- iDist(coords)
@@ -635,7 +635,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
   }
   # Check if any phi is fixed based on the prior
   phi.fix <- ifelse(sum(phi.a == phi.b) > 0, TRUE, FALSE)
-
+  
   # nu -----------------------------
   if (cov.model == "matern") {
     if (!"nu.unif" %in% names(priors)) {
@@ -648,11 +648,11 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     }
     if (length(nu.a) != q & length(nu.a) != 1) {
       stop(paste("error: nu.unif[[1]] must be a vector of length ", 
-      	   q, " or 1 with elements corresponding to nus' lower bound for each latent factor", sep = ""))
+                 q, " or 1 with elements corresponding to nus' lower bound for each latent factor", sep = ""))
     }
     if (length(nu.b) != q & length(nu.b) != 1) {
       stop(paste("error: nu.unif[[2]] must be a vector of length ", 
-      	   q, " or 1 with elements corresponding to nus' upper bound for each latent factor", sep = ""))
+                 q, " or 1 with elements corresponding to nus' upper bound for each latent factor", sep = ""))
     }
     if (length(nu.a) != q) {
       nu.a <- rep(nu.a, q)
@@ -664,7 +664,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     nu.a <- rep(0, q)
     nu.b <- rep(0, q)
   }
-
+  
   # sigma.sq.psi --------------------
   if (p.occ.re > 0) {
     if ("sigma.sq.psi.ig" %in% names(priors)) {
@@ -675,20 +675,20 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       sigma.sq.psi.b <- priors$sigma.sq.psi.ig[[2]]
       if (length(sigma.sq.psi.a) != p.occ.re & length(sigma.sq.psi.a) != 1) {
         if (p.occ.re == 1) {
-        stop(paste("error: sigma.sq.psi.ig[[1]] must be a vector of length ", 
-        	   p.occ.re, " with elements corresponding to sigma.sq.psis' shape", sep = ""))
+          stop(paste("error: sigma.sq.psi.ig[[1]] must be a vector of length ", 
+                     p.occ.re, " with elements corresponding to sigma.sq.psis' shape", sep = ""))
         } else {
-        stop(paste("error: sigma.sq.psi.ig[[1]] must be a vector of length ", 
-        	   p.occ.re, " or 1 with elements corresponding to sigma.sq.psis' shape", sep = ""))
+          stop(paste("error: sigma.sq.psi.ig[[1]] must be a vector of length ", 
+                     p.occ.re, " or 1 with elements corresponding to sigma.sq.psis' shape", sep = ""))
         }
       }
       if (length(sigma.sq.psi.b) != p.occ.re & length(sigma.sq.psi.b) != 1) {
         if (p.occ.re == 1) {
           stop(paste("error: sigma.sq.psi.ig[[2]] must be a vector of length ", 
-        	   p.occ.re, " with elements corresponding to sigma.sq.psis' scale", sep = ""))
+                     p.occ.re, " with elements corresponding to sigma.sq.psis' scale", sep = ""))
         } else {
           stop(paste("error: sigma.sq.psi.ig[[2]] must be a vector of length ", 
-        	   p.occ.re, " or 1with elements corresponding to sigma.sq.psis' scale", sep = ""))
+                     p.occ.re, " or 1with elements corresponding to sigma.sq.psis' scale", sep = ""))
         }
       }
       if (length(sigma.sq.psi.a) != p.occ.re) {
@@ -697,7 +697,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       if (length(sigma.sq.psi.b) != p.occ.re) {
         sigma.sq.psi.b <- rep(sigma.sq.psi.b, p.occ.re)
       }
-  }   else {
+    }   else {
       if (verbose) {	    
         message("No prior specified for sigma.sq.psi.ig.\nSetting prior shape to 0.1 and prior scale to 0.1\n")
       }
@@ -708,7 +708,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     sigma.sq.psi.a <- 0
     sigma.sq.psi.b <- 0
   }
-
+  
   # sigma.sq.p --------------------
   if (p.det.re > 0) {
     if ("sigma.sq.p.ig" %in% names(priors)) {
@@ -720,19 +720,19 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       if (length(sigma.sq.p.a) != p.det.re & length(sigma.sq.p.a) != 1) {
         if (p.det.re == 1) {
           stop(paste("error: sigma.sq.p.ig[[1]] must be a vector of length ", 
-        	   p.det.re, " with elements corresponding to sigma.sq.ps' shape", sep = ""))
+                     p.det.re, " with elements corresponding to sigma.sq.ps' shape", sep = ""))
         } else {
           stop(paste("error: sigma.sq.p.ig[[1]] must be a vector of length ", 
-        	   p.det.re, " or 1 with elements corresponding to sigma.sq.ps' shape", sep = ""))
+                     p.det.re, " or 1 with elements corresponding to sigma.sq.ps' shape", sep = ""))
         }
       }
       if (length(sigma.sq.p.b) != p.det.re & length(sigma.sq.p.b) != 1) {
         if (p.det.re == 1) {
           stop(paste("error: sigma.sq.p.ig[[2]] must be a vector of length ", 
-        	     p.det.re, " with elements corresponding to sigma.sq.ps' scale", sep = ""))
+                     p.det.re, " with elements corresponding to sigma.sq.ps' scale", sep = ""))
         } else {
           stop(paste("error: sigma.sq.p.ig[[2]] must be a vector of length ", 
-        	     p.det.re, " or 1 with elements corresponding to sigma.sq.ps' scale", sep = ""))
+                     p.det.re, " or 1 with elements corresponding to sigma.sq.ps' scale", sep = ""))
         }
       }
       if (length(sigma.sq.p.a) != p.det.re) {
@@ -741,7 +741,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       if (length(sigma.sq.p.b) != p.det.re) {
         sigma.sq.p.b <- rep(sigma.sq.p.b, p.det.re)
       }
-  }   else {
+    }   else {
       if (verbose) {	    
         message("No prior specified for sigma.sq.p.ig.\nSetting prior shape to 0.1 and prior scale to 0.1\n")
       }
@@ -752,7 +752,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     sigma.sq.p.a <- 0
     sigma.sq.p.b <- 0
   }
-
+  
   # Initial values --------------------------------------------------------
   if (missing(inits)) {
     inits <- list()
@@ -765,11 +765,11 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     z.inits <- inits$z
     if (!is.matrix(z.inits)) {
       stop(paste("error: initial values for z must be a matrix with dimensions ", 
-      	   N, " x ", J, sep = ""))
+                 N, " x ", J, sep = ""))
     }
     if (nrow(z.inits) != N | ncol(z.inits) != J) {
       stop(paste("error: initial values for z must be a matrix with dimensions ", 
-      	   N, " x ", J, sep = ""))
+                 N, " x ", J, sep = ""))
     }
     # Reorder the user supplied inits values for NNGP models
     if (NNGP) {
@@ -795,10 +795,10 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     if (length(beta.comm.inits) != p.occ & length(beta.comm.inits) != 1) {
       if (p.occ == 1) {
         stop(paste("error: initial values for beta.comm must be of length ", p.occ, 
-      	   sep = ""))
+                   sep = ""))
       } else {
         stop(paste("error: initial values for beta.comm must be of length ", p.occ, 
-      	   , " or 1", sep = ""))
+                   , " or 1", sep = ""))
       }
     }
     if (length(beta.comm.inits) != p.occ) {
@@ -817,10 +817,10 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     if (length(alpha.comm.inits) != p.det & length(alpha.comm.inits) != 1) {
       if (p.det == 1) {
         stop(paste("error: initial values for alpha.comm must be of length ", p.det, 
-      	   sep = ""))
+                   sep = ""))
       } else {
         stop(paste("error: initial values for alpha.comm must be of length ", p.det, 
-      	   , " or 1", sep = ""))
+                   , " or 1", sep = ""))
       }
     }
     if (length(alpha.comm.inits) != p.det) {
@@ -839,10 +839,10 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     if (length(tau.sq.beta.inits) != p.occ & length(tau.sq.beta.inits) != 1) {
       if (p.occ == 1) {
         stop(paste("error: initial values for tau.sq.beta must be of length ", p.occ, 
-      	   sep = ""))
+                   sep = ""))
       } else {
         stop(paste("error: initial values for tau.sq.beta must be of length ", p.occ, 
-      	   " or 1", sep = ""))
+                   " or 1", sep = ""))
       }
     }
     if (length(tau.sq.beta.inits) != p.occ) {
@@ -861,10 +861,10 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     if (length(tau.sq.alpha.inits) != p.det & length(tau.sq.alpha.inits) != 1) {
       if (p.det == 1) {
         stop(paste("error: initial values for tau.sq.alpha must be of length ", p.det, 
-      	   sep = ""))
+                   sep = ""))
       } else {
         stop(paste("error: initial values for tau.sq.alpha must be of length ", p.det, 
-      	   " or 1", sep = ""))
+                   " or 1", sep = ""))
       }
     }
     if (length(tau.sq.alpha.inits) != p.det) {
@@ -884,21 +884,21 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     if (is.matrix(beta.inits)) {
       if (ncol(beta.inits) != p.occ | nrow(beta.inits) != N) {
         stop(paste("error: initial values for beta must be a matrix with dimensions ", 
-        	   N, "x", p.occ, " or a single numeric value", sep = ""))
+                   N, "x", p.occ, " or a single numeric value", sep = ""))
       }
     }
     if (!is.matrix(beta.inits) & length(beta.inits) != 1) {
       stop(paste("error: initial values for beta must be a matrix with dimensions ", 
-      	   N, " x ", p.occ, " or a single numeric value", sep = ""))
+                 N, " x ", p.occ, " or a single numeric value", sep = ""))
     }
     if (length(beta.inits) == 1) {
       beta.inits <- matrix(beta.inits, N, p.occ)
     }
   } else {
-      beta.inits <- matrix(rnorm(N * p.occ, beta.comm.inits, sqrt(tau.sq.beta.inits)), N, p.occ)
-      if (verbose) {
-        message('beta is not specified in initial values.\nSetting initial values to random values from the community-level normal distribution\n')
-      }
+    beta.inits <- matrix(rnorm(N * p.occ, beta.comm.inits, sqrt(tau.sq.beta.inits)), N, p.occ)
+    if (verbose) {
+      message('beta is not specified in initial values.\nSetting initial values to random values from the community-level normal distribution\n')
+    }
   }
   # Create a N * p.occ x 1 matrix of the species-level regression coefficients. 
   # This is ordered by parameter, then species within a parameter. 
@@ -911,21 +911,21 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     if (is.matrix(alpha.inits)) {
       if (ncol(alpha.inits) != p.det | nrow(alpha.inits) != N) {
         stop(paste("error: initial values for alpha must be a matrix with dimensions ", 
-        	   N, "x", p.det, " or a single numeric value", sep = ""))
+                   N, "x", p.det, " or a single numeric value", sep = ""))
       }
     }
     if (!is.matrix(alpha.inits) & length(alpha.inits) != 1) {
       stop(paste("error: initial values for alpha must be a matrix with dimensions ", 
-      	   N, " x ", p.det, " or a single numeric value", sep = ""))
+                 N, " x ", p.det, " or a single numeric value", sep = ""))
     }
     if (length(alpha.inits) == 1) {
       alpha.inits <- matrix(alpha.inits, N, p.det)
     }
   } else {
-      alpha.inits <- matrix(rnorm(N * p.det, alpha.comm.inits, sqrt(tau.sq.alpha.inits)), N, p.det)
-      if (verbose) {
-        message('alpha is not specified in initial values.\nSetting initial values to random values from the community-level normal distribution\n')
-      }
+    alpha.inits <- matrix(rnorm(N * p.det, alpha.comm.inits, sqrt(tau.sq.alpha.inits)), N, p.det)
+    if (verbose) {
+      message('alpha is not specified in initial values.\nSetting initial values to random values from the community-level normal distribution\n')
+    }
   }
   # Create a N * p.det x 1 matrix of the species-level regression coefficients. 
   # This is ordered by parameter, then species within parameter. 
@@ -936,7 +936,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     phi.inits <- inits[["phi"]]
     if (length(phi.inits) != q & length(phi.inits) != 1) {
       stop(paste("error: initial values for phi must be of length ", q, " or 1", 
-      	   sep = ""))
+                 sep = ""))
     }
     if (length(phi.inits) != q) {
       phi.inits <- rep(phi.inits, q)
@@ -954,11 +954,11 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     lambda.inits <- inits[["lambda"]]
     if (!is.matrix(lambda.inits)) {
       stop(paste("error: initial values for lambda must be a matrix with dimensions ",
-		 N, " x ", q, sep = ""))
+                 N, " x ", q, sep = ""))
     }
     if (nrow(lambda.inits) != N | ncol(lambda.inits) != q) {
       stop(paste("error: initial values for lambda must be a matrix with dimensions ",
-		 N, " x ", q, sep = ""))
+                 N, " x ", q, sep = ""))
     }
     if (!all.equal(diag(lambda.inits), rep(1, q))) {
       stop("error: diagonal of inits$lambda matrix must be all 1s")
@@ -982,7 +982,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     nu.inits <- inits[["nu"]]
     if (length(nu.inits) != q & length(nu.inits) != 1) {
       stop(paste("error: initial values for nu must be of length ", q,  " or 1",
-      	   sep = ""))
+                 sep = ""))
     }
     if (length(nu.inits) != q) {
       nu.inits <- rep(nu.inits, q)
@@ -997,7 +997,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       nu.inits <- rep(0, q)
     }
   }
-
+  
   # sigma.sq.psi ------------------
   # ORDER: a length p.occ.re vector ordered by the random effects in the formula.
   if (p.occ.re > 0) {
@@ -1006,10 +1006,10 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       if (length(sigma.sq.psi.inits) != p.occ.re & length(sigma.sq.psi.inits) != 1) {
         if (p.occ.re == 1) {
           stop(paste("error: initial values for sigma.sq.psi must be of length ", p.occ.re, 
-      	     sep = ""))
+                     sep = ""))
         } else {
           stop(paste("error: initial values for sigma.sq.psi must be of length ", p.occ.re, 
-      	     " or 1", sep = ""))
+                     " or 1", sep = ""))
         }
       }
       if (length(sigma.sq.psi.inits) != p.occ.re) {
@@ -1029,7 +1029,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     beta.star.indx <- 0
     beta.star.inits <- 0
   }
-
+  
   # sigma.sq.p ------------------
   # ORDER: a length p.det.re vector ordered by the random effects in the formula.
   if (p.det.re > 0) {
@@ -1038,10 +1038,10 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       if (length(sigma.sq.p.inits) != p.det.re & length(sigma.sq.p.inits) != 1) {
         if (p.det.re == 1) {
           stop(paste("error: initial values for sigma.sq.p must be of length ", p.det.re, 
-      	     sep = ""))
+                     sep = ""))
         } else {
           stop(paste("error: initial values for sigma.sq.p must be of length ", p.det.re, 
-      	     " or 1", sep = ""))
+                     " or 1", sep = ""))
         }
       }
       if (length(sigma.sq.p.inits) != p.det.re) {
@@ -1061,7 +1061,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     alpha.star.indx <- 0
     alpha.star.inits <- 0
   }
-
+  
   # Should initial values be fixed --
   if ("fix" %in% names(inits)) {
     fix.inits <- inits[["fix"]]
@@ -1082,7 +1082,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
          paste(cov.model.names, collapse=", ", sep="") ,".")}
   # Obo for cov model lookup on c side
   cov.model.indx <- which(cov.model == cov.model.names) - 1
-
+  
   # Get tuning values ---------------------------------------------------
   # Not accessed, but necessary to keep things in line with the underlying functions. 
   sigma.sq.tuning <- rep(0, q)
@@ -1104,7 +1104,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       phi.tuning <- rep(tuning$phi, q)
     } else if (length(phi.tuning) != q) {
       stop(paste("error: phi tuning must be either a single value or a vector of length ",
-      	   q, sep = ""))
+                 q, sep = ""))
     }
     if (cov.model == 'matern') {
       # nu --------------------------
@@ -1116,7 +1116,7 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
         nu.tuning <- rep(tuning$nu, q)
       } else if (length(nu.tuning) != q) {
         stop(paste("error: nu tuning must be either a single value or a vector of length ",
-        	   q, sep = ""))
+                   q, sep = ""))
       }
     }
   }
@@ -1124,11 +1124,11 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
   # Set model.deviance to NA for returning when no cross-validation
   model.deviance <- NA
   curr.chain <- 1
-
+  
   if (!NNGP) {
-
+    
     stop("error: sfMsPGOcc is currently only implemented for NNGPs, not full Gaussian Processes. Please set NNGP = TRUE.") 
-
+    
   } else {
     
     # Nearest Neighbor Search ---------------------------------------------
@@ -1913,26 +1913,10 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       out$k.fold.mae <- colMeans(mae.matrix, na.rm = TRUE)
       names(out$k.fold.mae) <- sp.names
       
-      if (verbose) {
-        cat("\n----------------------------------------\n")
-        cat("Cross-validation Results Summary:\n")
-        cat("----------------------------------------\n")
-        cat(sprintf("Total Deviance: %.2f\n", out$k.fold.deviance))
-        if (calculate.auc) {
-          cat(sprintf("Mean AUC across species: %.3f (range: %.3f - %.3f)\n",
-                      mean(out$k.fold.auc, na.rm = TRUE),
-                      min(out$k.fold.auc, na.rm = TRUE),
-                      max(out$k.fold.auc, na.rm = TRUE)))
-          cat(sprintf("Mean Brier Score: %.3f\n", mean(out$k.fold.brier, na.rm = TRUE)))
-          cat(sprintf("Mean Tjur R²: %.3f\n", mean(out$k.fold.tjur.r2, na.rm = TRUE)))
-        }
-        cat(sprintf("Mean RMSE: %.3f\n", mean(out$k.fold.rmse, na.rm = TRUE)))
-        cat("----------------------------------------\n")
-      }
     }
     class(out) <- "sfMsPGOcc"
   }
-
+  
   # TODO: temporary to align with sfJSDM until range.ind is embedded within sfMsPGOcc
   out$std.by.sp <- FALSE
   out$species.sds <- NA
