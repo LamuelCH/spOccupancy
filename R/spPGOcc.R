@@ -1443,7 +1443,7 @@ spPGOcc <- function(occ.formula, det.formula, data, inits, priors,
         }
         
         fold.metrics
-        
+      }
         stopImplicitCluster()
         
         # Aggregate results
@@ -1458,7 +1458,6 @@ spPGOcc <- function(occ.formula, det.formula, data, inits, priors,
         
         out$k.fold.rmse <- mean(sapply(cv.metrics[, "rmse"], function(x) x[[1]]), na.rm = TRUE)
         out$k.fold.mae <- mean(sapply(cv.metrics[, "mae"], function(x) x[[1]]), na.rm = TRUE)
-      }
     } # END k-fold cross-validation
   } else {
     
@@ -2116,7 +2115,7 @@ spPGOcc <- function(occ.formula, det.formula, data, inits, priors,
         }
         
         fold.metrics
-        
+      }
         stopImplicitCluster()
         
         # Aggregate results
@@ -2132,8 +2131,8 @@ spPGOcc <- function(occ.formula, det.formula, data, inits, priors,
         out$k.fold.rmse <- mean(sapply(cv.metrics[, "rmse"], function(x) x[[1]]), na.rm = TRUE)
         out$k.fold.mae <- mean(sapply(cv.metrics[, "mae"], function(x) x[[1]]), na.rm = TRUE)# cross-validation
       } # NNGP or GP
-    }
   }
+
   class(out) <- "spPGOcc"
   out$run.time <- proc.time() - ptm
   return(out)
