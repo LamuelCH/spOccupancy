@@ -2130,7 +2130,7 @@ spPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       }
       
       out$k.fold.rmse <- mean(sapply(cv.metrics[, "rmse"], function(x) x[[1]]), na.rm = TRUE)
-      out$k.fold.mae <- mean(sapply(cv.metrics[, "mae"], function(x) x[[1]]), na.rm = TRUE)# cross-validation
+      out$k.fold.mae <- mean(sapply(cv.metrics[, "mae"], function(x) x[[1]]), na.rm = TRUE)
     }
   }
   class(out) <- "spPGOcc"
