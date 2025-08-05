@@ -1284,7 +1284,7 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
         }
       }
       
-      fold.deviance <- -2 * sum(apply(like.samples, 1, function(a) sum(log(a), na.rm = TRUE)))
+      fold.deviance <- -2 * apply(like.samples, 1, function(a) sum(log(a), na.rm = TRUE))
       
       # Calculate additional metrics
       fold.metrics <- list()
@@ -1353,7 +1353,9 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     stopImplicitCluster()
     
     # Aggregate results
-    out$k.fold.deviance <- sum(sapply(cv.metrics[, "deviance"], function(x) x[[1]]))
+    deviance.matrix <- do.call(rbind, cv.metrics[, "deviance"])
+    out$k.fold.deviance <- colMeans(deviance.matrix, na.rm = TRUE)
+    names(out$k.fold.deviance) <- sp.names
     
     if (calculate.auc) {
       auc.matrix <- do.call(rbind, cv.metrics[, "auc"])
