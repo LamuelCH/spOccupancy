@@ -1444,20 +1444,20 @@ spPGOcc <- function(occ.formula, det.formula, data, inits, priors,
         
         fold.metrics
       }
-        stopImplicitCluster()
-        
-        # Aggregate results
-        out$k.fold.deviance <- sum(sapply(cv.metrics[, "deviance"], function(x) x[[1]]))
-        
-        if (calculate.auc) {
-          out$k.fold.auc <- mean(sapply(cv.metrics[, "auc"], function(x) x[[1]]), na.rm = TRUE)
-          out$k.fold.brier <- mean(sapply(cv.metrics[, "brier"], function(x) x[[1]]), na.rm = TRUE)
-          out$k.fold.log.score <- mean(sapply(cv.metrics[, "log.score"], function(x) x[[1]]), na.rm = TRUE)
-          out$k.fold.tjur.r2 <- mean(sapply(cv.metrics[, "tjur.r2"], function(x) x[[1]]), na.rm = TRUE)
-        }
-        
-        out$k.fold.rmse <- mean(sapply(cv.metrics[, "rmse"], function(x) x[[1]]), na.rm = TRUE)
-        out$k.fold.mae <- mean(sapply(cv.metrics[, "mae"], function(x) x[[1]]), na.rm = TRUE)
+      stopImplicitCluster()
+      
+      # Aggregate results
+      out$k.fold.deviance <- sum(sapply(cv.metrics[, "deviance"], function(x) x[[1]]))
+      
+      if (calculate.auc) {
+        out$k.fold.auc <- mean(sapply(cv.metrics[, "auc"], function(x) x[[1]]), na.rm = TRUE)
+        out$k.fold.brier <- mean(sapply(cv.metrics[, "brier"], function(x) x[[1]]), na.rm = TRUE)
+        out$k.fold.log.score <- mean(sapply(cv.metrics[, "log.score"], function(x) x[[1]]), na.rm = TRUE)
+        out$k.fold.tjur.r2 <- mean(sapply(cv.metrics[, "tjur.r2"], function(x) x[[1]]), na.rm = TRUE)
+      }
+      
+      out$k.fold.rmse <- mean(sapply(cv.metrics[, "rmse"], function(x) x[[1]]), na.rm = TRUE)
+      out$k.fold.mae <- mean(sapply(cv.metrics[, "mae"], function(x) x[[1]]), na.rm = TRUE)
     } # END k-fold cross-validation
   } else {
     
@@ -2115,24 +2115,24 @@ spPGOcc <- function(occ.formula, det.formula, data, inits, priors,
         }
         
         fold.metrics
+      } 
+      
+      stopImplicitCluster()
+      
+      # Aggregate results
+      out$k.fold.deviance <- sum(sapply(cv.metrics[, "deviance"], function(x) x[[1]]))
+      
+      if (calculate.auc) {
+        out$k.fold.auc <- mean(sapply(cv.metrics[, "auc"], function(x) x[[1]]), na.rm = TRUE)
+        out$k.fold.brier <- mean(sapply(cv.metrics[, "brier"], function(x) x[[1]]), na.rm = TRUE)
+        out$k.fold.log.score <- mean(sapply(cv.metrics[, "log.score"], function(x) x[[1]]), na.rm = TRUE)
+        out$k.fold.tjur.r2 <- mean(sapply(cv.metrics[, "tjur.r2"], function(x) x[[1]]), na.rm = TRUE)
       }
-        stopImplicitCluster()
-        
-        # Aggregate results
-        out$k.fold.deviance <- sum(sapply(cv.metrics[, "deviance"], function(x) x[[1]]))
-        
-        if (calculate.auc) {
-          out$k.fold.auc <- mean(sapply(cv.metrics[, "auc"], function(x) x[[1]]), na.rm = TRUE)
-          out$k.fold.brier <- mean(sapply(cv.metrics[, "brier"], function(x) x[[1]]), na.rm = TRUE)
-          out$k.fold.log.score <- mean(sapply(cv.metrics[, "log.score"], function(x) x[[1]]), na.rm = TRUE)
-          out$k.fold.tjur.r2 <- mean(sapply(cv.metrics[, "tjur.r2"], function(x) x[[1]]), na.rm = TRUE)
-        }
-        
-        out$k.fold.rmse <- mean(sapply(cv.metrics[, "rmse"], function(x) x[[1]]), na.rm = TRUE)
-        out$k.fold.mae <- mean(sapply(cv.metrics[, "mae"], function(x) x[[1]]), na.rm = TRUE)# cross-validation
-      } # NNGP or GP
+      
+      out$k.fold.rmse <- mean(sapply(cv.metrics[, "rmse"], function(x) x[[1]]), na.rm = TRUE)
+      out$k.fold.mae <- mean(sapply(cv.metrics[, "mae"], function(x) x[[1]]), na.rm = TRUE)# cross-validation
+    }
   }
-
   class(out) <- "spPGOcc"
   out$run.time <- proc.time() - ptm
   return(out)
