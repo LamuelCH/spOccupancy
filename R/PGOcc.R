@@ -1026,35 +1026,114 @@ PGOcc <- function(occ.formula, det.formula, data, inits, priors,
       fold.metrics <- list()
       fold.metrics$deviance <- fold.deviance
       
-      # Calculate AUC and other metrics
-      pred.probs <- colMeans(out.pred$z.0.samples)
-      obs.occ <- apply(y.big.0, 1, max, na.rm = TRUE)
-      obs.occ[obs.occ == -Inf] <- NA
-      valid.sites <- !is.na(obs.occ)
-      
-      if (sum(valid.sites) > 0 && length(unique(obs.occ[valid.sites])) > 1) {
-        if (calculate.auc) {
-          fold.metrics$auc <- pROC::auc(obs.occ[valid.sites], pred.probs[valid.sites], quiet = TRUE)
-          fold.metrics$brier <- mean((pred.probs[valid.sites] - obs.occ[valid.sites])^2)
+      # Calculate AUC, RMSE, Tjur R2 to match deviance calculation
+      if (calculate.auc) {
+        # Get number of sites in test set
+        n.test.sites <- J.0
+        pred.at.least.one.detection <- numeric(n.test.sites)
+        
+        # For each site, calculate P(at least one detection)
+        for (j in 1:n.test.sites) {
+          # Get occurrence probability for this site
+          z.prob.samples <- out.pred$z.0.samples[, j]  # Posterior samples
+          
+          # Calculate P(no detection across all visits) for each posterior sample
+          n.samples.post <- length(z.prob.samples)
+          prob.no.detection <- numeric(n.samples.post)
+          
+          for (s in 1:n.samples.post) {
+            prob.no.det.this.sample <- 1
+            # Loop through visits at this site
+            for (k in rep.indx.0[[j]]) {
+              # Get detection probability for this visit
+              p.prob <- out.p.pred$p.0.samples[s, j]
+              
+              # Probability of no detection at this visit
+              prob.no.det.this.sample <- prob.no.det.this.sample * (1 - z.prob.samples[s] * p.prob)
+            }
+            prob.no.detection[s] <- prob.no.det.this.sample
+          }
+          
+          # P(at least one detection) = 1 - P(no detection)
+          pred.at.least.one.detection[j] <- 1 - mean(prob.no.detection)
+        }
+        
+        # Observed: was species detected at least once at each site?
+        obs.occ <- apply(y.big.0, 1, max, na.rm = TRUE)
+        obs.occ[obs.occ == -Inf] <- NA
+        valid.sites <- !is.na(obs.occ)
+        
+        if (sum(valid.sites) > 0 && length(unique(obs.occ[valid.sites])) > 1) {
+          # AUC
+          fold.metrics$auc <- pROC::auc(obs.occ[valid.sites], 
+                                        pred.at.least.one.detection[valid.sites], 
+                                        quiet = TRUE)
+          
+          # Brier Score
+          fold.metrics$brier <- mean((pred.at.least.one.detection[valid.sites] - 
+                                        obs.occ[valid.sites])^2)
+          
+          # Log Score
           eps <- 1e-10
-          pred.probs.bounded <- pmax(pmin(pred.probs[valid.sites], 1 - eps), eps)
+          pred.probs.bounded <- pmax(pmin(pred.at.least.one.detection[valid.sites], 
+                                          1 - eps), eps)
           fold.metrics$log.score <- -mean(obs.occ[valid.sites] * log(pred.probs.bounded) + 
                                             (1 - obs.occ[valid.sites]) * log(1 - pred.probs.bounded))
-          mean.1 <- mean(pred.probs[valid.sites][obs.occ[valid.sites] == 1])
-          mean.0 <- mean(pred.probs[valid.sites][obs.occ[valid.sites] == 0])
+          
+          # Tjur R²
+          mean.1 <- mean(pred.at.least.one.detection[valid.sites][obs.occ[valid.sites] == 1])
+          mean.0 <- mean(pred.at.least.one.detection[valid.sites][obs.occ[valid.sites] == 0])
           fold.metrics$tjur.r2 <- mean.1 - mean.0
-        }
-        fold.metrics$rmse <- sqrt(mean((pred.probs[valid.sites] - obs.occ[valid.sites])^2))
-        fold.metrics$mae <- mean(abs(pred.probs[valid.sites] - obs.occ[valid.sites]))
-      } else {
-        if (calculate.auc) {
+          
+          # RMSE
+          fold.metrics$rmse <- sqrt(mean((pred.at.least.one.detection[valid.sites] - 
+                                            obs.occ[valid.sites])^2))
+          
+          # MAE
+          fold.metrics$mae <- mean(abs(pred.at.least.one.detection[valid.sites] - 
+                                         obs.occ[valid.sites]))
+        } else {
           fold.metrics$auc <- NA
           fold.metrics$brier <- NA
           fold.metrics$log.score <- NA
           fold.metrics$tjur.r2 <- NA
+          fold.metrics$rmse <- NA
+          fold.metrics$mae <- NA
         }
-        fold.metrics$rmse <- NA
-        fold.metrics$mae <- NA
+      } else {
+        # Still calculate RMSE and MAE even if pROC not available
+        n.test.sites <- J.0
+        pred.at.least.one.detection <- numeric(n.test.sites)
+        
+        for (j in 1:n.test.sites) {
+          z.prob.samples <- out.pred$z.0.samples[, j]
+          n.samples.post <- length(z.prob.samples)
+          prob.no.detection <- numeric(n.samples.post)
+          
+          for (s in 1:n.samples.post) {
+            prob.no.det.this.sample <- 1
+            for (k in rep.indx.0[[j]]) {
+              p.prob <- out.p.pred$p.0.samples[s, j]
+              prob.no.det.this.sample <- prob.no.det.this.sample * (1 - z.prob.samples[s] * p.prob)
+            }
+            prob.no.detection[s] <- prob.no.det.this.sample
+          }
+          pred.at.least.one.detection[j] <- 1 - mean(prob.no.detection)
+        }
+        
+        obs.occ <- apply(y.big.0, 1, max, na.rm = TRUE)
+        obs.occ[obs.occ == -Inf] <- NA
+        valid.sites <- !is.na(obs.occ)
+        
+        if (sum(valid.sites) > 0) {
+          fold.metrics$rmse <- sqrt(mean((pred.at.least.one.detection[valid.sites] - 
+                                            obs.occ[valid.sites])^2))
+          fold.metrics$mae <- mean(abs(pred.at.least.one.detection[valid.sites] - 
+                                         obs.occ[valid.sites]))
+        } else {
+          fold.metrics$rmse <- NA
+          fold.metrics$mae <- NA
+        }
       }
       
       fold.metrics
