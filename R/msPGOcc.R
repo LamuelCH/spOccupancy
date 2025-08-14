@@ -1318,15 +1318,21 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
               # Loop through visits at this site
               for (k in rep.indx.0[[j]]) {
                 # Get detection probability for this visit
-                # Note: need to map visit k to the right index in p.0.samples
-                visit.idx <- which(rep.indx.0[[j]] == k)
                 if (binom) {
                   # For binomial case, p is at site level
                   p.prob <- out.p.pred$p.0.samples[s, r, j]
                 } else {
-                  # For non-binomial, need to find the right index
-                  # This depends on how X.p.0 is structured
-                  p.prob <- out.p.pred$p.0.samples[s, r, j]  # May need adjustment
+                  # For non-binomial case, need to find the right index in p.0.samples
+                  # Calculate the observation index for this site-visit combination
+                  # This is based on how the data is structured in the predict function
+                  if (j == 1) {
+                    obs.idx <- k
+                  } else {
+                    # Count total visits at previous sites
+                    obs.idx <- sum(sapply(1:(j-1), function(x) length(rep.indx.0[[x]]))) + 
+                      which(rep.indx.0[[j]] == k)
+                  }
+                  p.prob <- out.p.pred$p.0.samples[s, r, obs.idx]
                 }
                 
                 # Probability of no detection at this visit
