@@ -1412,7 +1412,7 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     
     # Aggregate results
     deviance.matrix <- do.call(rbind, cv.metrics[, "deviance"])
-    out$k.fold.deviance <- colMeans(deviance.matrix, na.rm = TRUE)
+    out$k.fold.deviance <- colSums(deviance.matrix, na.rm = TRUE)
     names(out$k.fold.deviance) <- sp.names
     
     if (calculate.auc) {
