@@ -1834,48 +1834,56 @@ sfMsPGOcc <- function(occ.formula, det.formula, data, inits, priors,
           mae.values <- numeric(N)
           
           for (r in 1:N) {
-            # Get number of sites in test set
-            n.test.sites <- J.0
-            pred.at.least.one.detection <- numeric(n.test.sites)
-            
-            # For each site, calculate P(at least one detection)
-            for (j in 1:n.test.sites) {
-              # Get occurrence probability for this site
-              z.prob.samples <- out.pred$z.0.samples[, r, j]  # Posterior samples
+            if (binom) {
+              # For binomial case, work at site level
+              n.test.sites <- J.0
+              pred.at.least.one.detection <- numeric(n.test.sites)
               
-              # Calculate P(no detection across all visits) for each posterior sample
-              n.samples.post <- length(z.prob.samples)
-              prob.no.detection <- numeric(n.samples.post)
-              
-              for (s in 1:n.samples.post) {
-                prob.no.det.this.sample <- 1
-                # Loop through visits at this site
-                for (k in rep.indx.0[[j]]) {
-                  # Get detection probability for this visit
-                  if (binom) {
-                    # For binomial case, p is at site level
+              for (j in 1:n.test.sites) {
+                z.prob.samples <- out.pred$z.0.samples[, r, j]
+                n.samples.post <- length(z.prob.samples)
+                prob.no.detection <- numeric(n.samples.post)
+                
+                for (s in 1:n.samples.post) {
+                  prob.no.det.this.sample <- 1
+                  for (k in rep.indx.0[[j]]) {
                     p.prob <- out.p.pred$p.0.samples[s, r, j]
-                  } else {
-                    # For non-binomial case, need to find the right index in p.0.samples
-                    # Calculate the observation index for this site-visit combination
-                    if (j == 1) {
-                      obs.idx <- k
-                    } else {
-                      # Count total visits at previous sites
-                      obs.idx <- sum(sapply(1:(j-1), function(x) length(rep.indx.0[[x]]))) + 
-                        which(rep.indx.0[[j]] == k)
-                    }
-                    p.prob <- out.p.pred$p.0.samples[s, r, obs.idx]
+                    prob.no.det.this.sample <- prob.no.det.this.sample * (1 - z.prob.samples[s] * p.prob)
                   }
-                  
-                  # Probability of no detection at this visit
-                  prob.no.det.this.sample <- prob.no.det.this.sample * (1 - z.prob.samples[s] * p.prob)
+                  prob.no.detection[s] <- prob.no.det.this.sample
                 }
-                prob.no.detection[s] <- prob.no.det.this.sample
+                pred.at.least.one.detection[j] <- 1 - mean(prob.no.detection)
+              }
+            } else {
+              # For non-binomial case, iterate through observations like deviance does
+              n.obs.test <- nrow(X.p.0)
+              n.test.sites <- J.0
+              
+              # Initialize site-level predictions
+              pred.at.least.one.detection <- numeric(n.test.sites)
+              site.prob.no.det <- vector("list", n.test.sites)
+              for (j in 1:n.test.sites) {
+                site.prob.no.det[[j]] <- rep(1, length(out.pred$z.0.samples[, r, j]))
               }
               
-              # P(at least one detection) = 1 - P(no detection)
-              pred.at.least.one.detection[j] <- 1 - mean(prob.no.detection)
+              # Process each observation
+              for (j in 1:n.obs.test) {
+                # Get the site this observation belongs to
+                site.idx <- z.0.long.indx[j]
+                
+                # Get probabilities for this observation
+                z.prob.samples <- out.pred$z.0.samples[, r, site.idx]
+                p.prob.samples <- out.p.pred$p.0.samples[, r, j]
+                
+                # Update the probability of no detection at this site
+                site.prob.no.det[[site.idx]] <- site.prob.no.det[[site.idx]] * 
+                  (1 - z.prob.samples * p.prob.samples)
+              }
+              
+              # Calculate P(at least one detection) for each site
+              for (j in 1:n.test.sites) {
+                pred.at.least.one.detection[j] <- 1 - mean(site.prob.no.det[[j]])
+              }
             }
             
             # Observed: was species detected at least once at each site?
