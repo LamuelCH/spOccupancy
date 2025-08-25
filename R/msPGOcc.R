@@ -1434,19 +1434,12 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     
     stopImplicitCluster()
     
-<<<<<<< HEAD
     # MODIFICATION: Process and store all predictions
     # Extract metrics (as before)
     all.metrics <- lapply(cv.metrics, function(x) x$metrics)
     cv.metrics.df <- data.frame(
       deviance = do.call(c, lapply(all.metrics, function(x) x$deviance))
     )
-=======
-    # Aggregate results
-    deviance.matrix <- do.call(rbind, cv.metrics[, "deviance"])
-    out$k.fold.deviance <- colSums(deviance.matrix, na.rm = TRUE)
-    names(out$k.fold.deviance) <- sp.names
->>>>>>> e908c895fa3d5ef140c055d2c02da9e771105e3a
     
     if (calculate.auc) {
       cv.metrics.df$auc <- do.call(c, lapply(all.metrics, function(x) x$auc))
