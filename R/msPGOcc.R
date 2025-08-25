@@ -1010,12 +1010,8 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     }
   }
   # Modified msPGOcc cross-validation section that stores predicted values
-  # This modification should be inserted into the msPGOcc function to replace the existing CV section
-  
-  # Add this parameter to the msPGOcc function arguments:
-  # return.cv.pred = FALSE  # New parameter to control whether to return CV predictions
-  
-  # Then replace the k-fold cross-validation section with this modified version:
+  # This replaces the k-fold cross-validation section in the msPGOcc function
+  # Add parameter: return.cv.pred = FALSE to the function arguments
   
   # K-fold cross-validation -------
   if (!missing(k.fold)) {
@@ -1068,109 +1064,117 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     
     registerDoParallel(k.fold.threads)
     
-    # MODIFICATION: Add storage for predictions
+    # MODIFICATION: Storage for predictions (will be populated after parallel loop)
     cv.pred.storage <- list()
     
     cv.metrics <- foreach (i = 1:k.fold, .combine = 'rbind') %dopar% {
       curr.set <- sort(sites.k.fold[[i]])
+      
+      # Create index and subset data - this part is CRITICAL and differs for binom vs non-binom
       if (binom) {
         y.indx <- !(1:J %in% curr.set)
+        y.fit <- y[rep(y.indx, each = N), drop = FALSE]
+        y.0 <- y[rep(!y.indx, each = N), drop = FALSE]
       } else {
-        y.indx <- !(rep(1:J, each = K.max) %in% rep(curr.set, each = K.max))
+        y.indx <- !((z.long.indx + 1) %in% curr.set)
+        y.fit <- c(y.big[, -curr.set, , drop = FALSE])
+        y.fit <- y.fit[!is.na(y.fit)]
+        y.0 <- c(y.big[, curr.set, , drop = FALSE])
+        y.0 <- y.0[!is.na(y.0)]
       }
       
-      # Subset data for model fitting
-      y.fit <- y.big[, y.indx, , drop = FALSE]
-      X.fit <- X[y.indx[1:J], , drop = FALSE]
-      X.re.fit <- X.re[y.indx[1:J], , drop = FALSE]
-      if (binom) {
-        X.p.fit <- X.p[y.indx[1:J], , drop = FALSE]
-        X.p.re.fit <- X.p.re[y.indx[1:J], , drop = FALSE]
-        if (!missing(grid.index)) {
-          grid.index.fit <- grid.index[y.indx[1:J]]
+      z.inits.fit <- z.inits[, -curr.set]
+      y.big.fit <- y.big[, -curr.set, , drop = FALSE]
+      y.big.0 <- y.big[, curr.set, , drop = FALSE]
+      X.p.fit <- X.p[y.indx, , drop = FALSE]
+      X.p.0 <- X.p[!y.indx, , drop = FALSE]
+      X.fit <- X[-curr.set, , drop = FALSE]
+      X.0 <- X[curr.set, , drop = FALSE]
+      J.fit <- nrow(X.fit)
+      J.0 <- nrow(X.0)
+      K.fit <- K[-curr.set]
+      K.0 <- K[curr.set]
+      rep.indx.fit <- rep.indx[-curr.set]
+      rep.indx.0 <- rep.indx[curr.set]
+      n.obs.fit <- nrow(X.p.fit)
+      n.obs.0 <- nrow(X.p.0)
+      
+      # Random Effects handling
+      X.p.re.fit <- X.p.re[y.indx, , drop = FALSE]
+      X.p.re.0 <- X.p.re[!y.indx, , drop = FALSE]
+      X.re.fit <- X.re[-curr.set, , drop = FALSE]
+      X.re.0 <- X.re[curr.set, , drop = FALSE]
+      
+      # Get random effect information for fitting
+      if (p.det.re > 0) {
+        n.det.re.fit <- length(unique(c(X.p.re.fit)))
+        n.det.re.long.fit <- apply(X.p.re.fit, 2, function(a) length(unique(a)))
+        alpha.star.indx.fit <- rep(0:(p.det.re - 1), n.det.re.long.fit)
+        alpha.level.indx.fit <- sort(unique(c(X.p.re.fit)))
+        alpha.star.inits.fit <- rnorm(n.det.re.fit, 0,
+                                      sqrt(sigma.sq.p.inits[alpha.star.indx.fit + 1]))
+        alpha.star.inits.fit <- rep(alpha.star.inits.fit, N)
+        p.re.level.names.fit <- list()
+        for (t in 1:p.det.re) {
+          tmp.indx <- alpha.level.indx.fit[alpha.star.indx.fit == t - 1]
+          p.re.level.names.fit[[t]] <- unlist(p.re.level.names)[tmp.indx + 1]    
         }
       } else {
-        X.p.fit <- X.p[y.indx, , drop = FALSE]
-        X.p.re.fit <- X.p.re[y.indx, , drop = FALSE]
+        n.det.re.fit <- 0
+        n.det.re.long.fit <- 0
+        alpha.star.indx.fit <- 0
+        alpha.level.indx.fit <- 0
+        alpha.star.inits.fit <- 0
+        p.re.level.names.fit <- p.re.level.names
       }
       
-      J.fit <- nrow(X.fit)
-      
-      # Get z values and longIndx for model fitting
-      if (binom) {
-        z.long.indx.fit <- (0:(J.fit - 1))
-      } else {
-        z.long.indx.fit <- rep(0:(J.fit - 1), dim(y.fit)[3])
-        z.long.indx.fit <- z.long.indx.fit[!is.na(c(y.fit[1, , ]))]
-      }
-      
-      # Held-out data
-      y.big.0 <- y.big[, !y.indx[1:J], , drop = FALSE]
-      y.0 <- c(y.big.0)
-      y.0 <- y.0[!is.na(y.0)]
-      X.0 <- X[!y.indx[1:J], , drop = FALSE]
-      X.re.0 <- X.re[!y.indx[1:J], , drop = FALSE]
-      J.0 <- nrow(X.0)
-      
-      # For getting the right indices of the detection covariates in the test set
-      if (binom) {
-        X.p.0 <- X.p[!y.indx[1:J], , drop = FALSE]
-        X.p.re.0 <- X.p.re[!y.indx[1:J], , drop = FALSE]
-        z.0.long.indx <- (0:(J.0 - 1))
-        rep.indx.0 <- lapply(1:J.0, function(a) which(!is.na(y.big.0[1, a, ])))
-      } else {
-        rep.0.indx <- which(!y.indx)
-        X.p.0 <- X.p[rep.0.indx, , drop = FALSE]
-        X.p.re.0 <- X.p.re[rep.0.indx, , drop = FALSE]
-        z.0.long.indx <- rep(0:(J.0 - 1), dim(y.big.0)[3])
-        z.0.long.indx <- z.0.long.indx[!is.na(c(y.big.0[1, , ]))]
-      }
-      
-      # Reassign to get the training data in proper format
-      y.fit <- c(y.fit)
-      y.fit <- y.fit[!is.na(y.fit)]
-      
-      # Get the right random effects
-      re.level.names.fit <- lapply(X.re.fit, function(a) unique(a))
-      p.re.level.names.fit <- lapply(X.p.re.fit, function(a) unique(a))
       if (p.occ.re > 0) {
-        n.occ.re.fit <- length(unlist(unique(re.level.names.fit)))
+        n.occ.re.fit <- length(unique(c(X.re.fit)))
+        n.occ.re.long.fit <- apply(X.re.fit, 2, function(a) length(unique(a)))
+        beta.star.indx.fit <- rep(0:(p.occ.re - 1), n.occ.re.long.fit)
+        beta.level.indx.fit <- sort(unique(c(X.re.fit)))
+        beta.star.inits.fit <- rnorm(n.occ.re.fit, 0,
+                                     sqrt(sigma.sq.psi.inits[beta.star.indx.fit + 1]))
+        beta.star.inits.fit <- rep(beta.star.inits.fit, N)
+        re.level.names.fit <- list()
+        for (t in 1:p.occ.re) {
+          tmp.indx <- beta.level.indx.fit[beta.star.indx.fit == t - 1]
+          re.level.names.fit[[t]] <- unlist(re.level.names)[tmp.indx + 1]    
+        }
       } else {
         n.occ.re.fit <- 0
-      }
-      n.occ.re.long.fit <- sapply(re.level.names.fit, length)
-      if (p.det.re > 0) {
-        n.det.re.fit <- length(unlist(unique(p.re.level.names.fit)))
-      } else {
-        n.det.re.fit <- 0
-      }
-      n.det.re.long.fit <- sapply(p.re.level.names.fit, length)
-      
-      # Initial values
-      z.inits.fit <- z.inits[, y.indx[1:J], drop = FALSE]
-      z.inits.fit <- z.inits.fit[, order(ord[y.indx[1:J]])]
-      if (p.occ.re > 0) {
-        beta.star.inits.fit <- beta.star.inits[, 1:n.occ.re.fit, drop = FALSE]
-        sigma.sq.psi.inits.fit <- sigma.sq.psi.inits
-      } else {
+        n.occ.re.long.fit <- 0
+        beta.star.indx.fit <- 0
+        beta.level.indx.fit <- 0
         beta.star.inits.fit <- 0
-        sigma.sq.psi.inits.fit <- 0
+        re.level.names.fit <- re.level.names
       }
-      if (p.det.re > 0) {
-        alpha.star.inits.fit <- alpha.star.inits[, 1:n.det.re.fit, drop = FALSE]
-        sigma.sq.p.inits.fit <- sigma.sq.p.inits
+      
+      # Get z indices
+      if (!binom) {
+        z.long.indx.fit <- rep(1:J.fit, dim(y.big.fit)[3])
+        z.long.indx.fit <- z.long.indx.fit[!is.na(c(y.big.fit[1, , ]))]
+        z.long.indx.fit <- z.long.indx.fit - 1
+        z.0.long.indx <- rep(1:J.0, dim(y.big.0)[3])
+        z.0.long.indx <- z.0.long.indx[!is.na(c(y.big.0[1, , ]))]
+        z.0.long.indx <- z.0.long.indx - 1
       } else {
-        alpha.star.inits.fit <- 0
-        sigma.sq.p.inits.fit <- 0
+        z.long.indx.fit <- 0:(J.fit - 1)
+        z.0.long.indx <- 0:(J.0 - 1)
+        rep.indx.0 <- lapply(1:J.0, function(a) which(!is.na(y.big.0[1, a, ])))
       }
       
       # Set up consts
-      K.fit <- c(apply(y.fit, 1, function(a) sum(!is.na(a))))
+      K.fit <- apply(y.big.fit[1, , , drop = FALSE], 2, function(a) sum(!is.na(a)))
       storage.mode(K.fit) <- "integer"
-      n.obs.fit <- nrow(X.p.fit)
       consts.fit <- c(N, J.fit, p.occ, p.occ.re, p.det, p.det.re, n.occ.re.fit, n.det.re.fit, n.obs.fit)
       
-      # Fit the model
+      # Prepare for C call
+      verbose.fit <- FALSE
+      n.omp.threads.fit <- 1
+      samples.info <- c(n.burn, n.thin, n.post.samples)
+      chain.info <- c(1, 1, 1)
+      
       storage.mode(y.fit) <- "double"
       storage.mode(X.fit) <- "double"
       storage.mode(X.p.fit) <- "double"
@@ -1187,14 +1191,13 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       storage.mode(alpha.star.inits.fit) <- "double"
       storage.mode(alpha.star.indx.fit) <- "integer"
       storage.mode(alpha.level.indx.fit) <- "integer"
-      storage.mode(X.re.fit) <- "integer"
       storage.mode(n.occ.re.long.fit) <- "integer"
       storage.mode(beta.star.inits.fit) <- "double"
       storage.mode(beta.star.indx.fit) <- "integer"
       storage.mode(beta.level.indx.fit) <- "integer"
-      chain.info[1] <- 1
       storage.mode(chain.info) <- "integer"
       
+      # Fit the model
       out.fit <- .Call("msPGOcc", y.fit, X.fit, X.p.fit, X.re.fit, X.p.re.fit, consts.fit, 
                        K.fit, n.occ.re.long.fit, n.det.re.long.fit,
                        beta.inits, alpha.inits, z.inits.fit, beta.comm.inits, 
@@ -1210,6 +1213,7 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
                        n.samples, n.omp.threads.fit, 
                        verbose.fit, n.report, samples.info, chain.info)
       
+      # Process fitted model
       if (is.null(sp.names)) {
         sp.names <- paste('sp', 1:N, sep = '')
       }
@@ -1219,33 +1223,19 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       coef.names.det <- paste(rep(x.p.names, each = N), sp.names, sep = '-')
       out.fit$alpha.samples <- mcmc(t(out.fit$alpha.samples))
       colnames(out.fit$alpha.samples) <- coef.names.det
+      
+      # Add required elements for predict function
       out.fit$X <- X.fit
       out.fit$y <- y.big.fit
       out.fit$X.p <- X.p.fit
-      out.fit$call <- cl
       out.fit$n.samples <- n.samples
       out.fit$n.post <- n.post.samples
       out.fit$n.thin <- n.thin
       out.fit$n.burn <- n.burn
       out.fit$n.chains <- 1
+      
       if (p.det.re > 0) {
         out.fit$pRE <- TRUE
-      } else {
-        out.fit$pRE <- FALSE
-      }
-      if (p.occ.re > 0) {
-        out.fit$sigma.sq.psi.samples <- mcmc(t(out.fit$sigma.sq.psi.samples))
-        colnames(out.fit$sigma.sq.psi.samples) <- x.re.names
-        out.fit$beta.star.samples <- mcmc(t(out.fit$beta.star.samples))
-        tmp.names <- unlist(re.level.names.fit)
-        beta.star.names <- paste(rep(x.re.names, n.occ.re.long.fit), tmp.names, sep = '-')
-        beta.star.names <- paste(beta.star.names, rep(sp.names, each = n.occ.re.fit), 
-                                 sep = '-')
-        colnames(out.fit$beta.star.samples) <- beta.star.names
-        out.fit$re.level.names <- re.level.names.fit
-        out.fit$X.re <- X.re.fit
-      }
-      if (p.det.re > 0) {
         out.fit$sigma.sq.p.samples <- mcmc(t(out.fit$sigma.sq.p.samples))
         colnames(out.fit$sigma.sq.p.samples) <- x.p.re.names
         out.fit$alpha.star.samples <- mcmc(t(out.fit$alpha.star.samples))
@@ -1256,44 +1246,56 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
         colnames(out.fit$alpha.star.samples) <- alpha.star.names
         out.fit$p.re.level.names <- p.re.level.names.fit
         out.fit$X.p.re <- X.p.re.fit
+      } else {
+        out.fit$pRE <- FALSE
       }
+      
       if (p.occ.re > 0) {
         out.fit$psiRE <- TRUE
+        out.fit$sigma.sq.psi.samples <- mcmc(t(out.fit$sigma.sq.psi.samples))
+        colnames(out.fit$sigma.sq.psi.samples) <- x.re.names
+        out.fit$beta.star.samples <- mcmc(t(out.fit$beta.star.samples))
+        tmp.names <- unlist(re.level.names.fit)
+        beta.star.names <- paste(rep(x.re.names, n.occ.re.long.fit), tmp.names, sep = '-')
+        beta.star.names <- paste(beta.star.names, rep(sp.names, each = n.occ.re.fit), 
+                                 sep = '-')
+        colnames(out.fit$beta.star.samples) <- beta.star.names
+        out.fit$re.level.names <- re.level.names.fit
+        out.fit$X.re <- X.re.fit
       } else {
         out.fit$psiRE <- FALSE	
       }
       class(out.fit) <- "msPGOcc"
       
-      # Get RE levels correct for when they aren't supplied at values starting at 1.
+      # Predict occurrence at new sites
       if (p.occ.re > 0) {
         tmp <- unlist(re.level.names)
         X.re.0 <- matrix(tmp[c(X.re.0 + 1)], nrow(X.re.0), ncol(X.re.0))
         colnames(X.re.0) <- x.re.names
+        X.0 <- cbind(X.0, X.re.0)
       }
-      # Predict occurrence at new sites.
-      if (p.occ.re > 0) {X.0 <- cbind(X.0, X.re.0)}
       out.pred <- predict.msPGOcc(out.fit, X.0)
       
-      # Generate detection values
+      # Predict detection
       if (p.det.re > 0) {
         tmp <- unlist(p.re.level.names)
         X.p.re.0 <- matrix(tmp[c(X.p.re.0 + 1)], nrow(X.p.re.0), ncol(X.p.re.0))
         colnames(X.p.re.0) <- x.p.re.names
+        X.p.0 <- cbind(X.p.0, X.p.re.0)
       }
-      if (p.det.re > 0) {X.p.0 <- cbind(X.p.0, X.p.re.0)}
       out.p.pred <- predict.msPGOcc(out.fit, X.p.0, type = 'detection')
       
-      # MODIFICATION: Initialize storage for predicted values by species
+      # Calculate likelihood and predictions
+      # MODIFICATION: Store predicted probabilities
       fold.predictions <- list()
       
       if (binom) {
         like.samples <- array(NA, c(N, nrow(X.p.0), dim(y.big.0)[3]))
         for (r in 1:N) {
-          # MODIFICATION: Store predictions for each species
+          # Calculate and store predictions for each species
           species.predictions <- numeric(J.0)
           
-          for (j in 1:nrow(X.p.0)) {
-            # Calculate probability of at least one detection
+          for (j in 1:J.0) {
             z.prob.samples <- out.pred$z.0.samples[, r, j]
             n.samples.post <- length(z.prob.samples)
             prob.no.detection <- numeric(n.samples.post)
@@ -1308,18 +1310,19 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
             }
             species.predictions[j] <- 1 - mean(prob.no.detection)
             
+            # Calculate likelihood for deviance
             for (k in rep.indx.0[[j]]) {
               like.samples[r, j, k] <- mean(dbinom(y.big.0[r, j, k], 1,
-                                                   out.p.pred$p.0.samples[, r, j] * out.pred$z.0.samples[, r, z.0.long.indx[j]]))
+                                                   out.p.pred$p.0.samples[, r, j] * 
+                                                     out.pred$z.0.samples[, r, z.0.long.indx[j] + 1]))
             }
           }
-          # Store predictions for this species
           fold.predictions[[r]] <- species.predictions
         }
       } else {
         like.samples <- matrix(NA, N, nrow(X.p.0))
         for (r in 1:N) {
-          # MODIFICATION: Store predictions for non-binomial case
+          # For non-binomial case
           n.test.sites <- J.0
           species.predictions <- numeric(n.test.sites)
           site.prob.no.det <- vector("list", n.test.sites)
@@ -1329,7 +1332,7 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
           }
           
           for (j in 1:nrow(X.p.0)) {
-            site.idx <- z.0.long.indx[j] + 1  # Add 1 because C indices start at 0
+            site.idx <- z.0.long.indx[j] + 1  # Convert from C indexing
             z.prob.samples <- out.pred$z.0.samples[, r, site.idx]
             p.prob.samples <- out.p.pred$p.0.samples[, r, j]
             site.prob.no.det[[site.idx]] <- site.prob.no.det[[site.idx]] * 
@@ -1340,7 +1343,6 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
                                                 out.pred$z.0.samples[, r, z.0.long.indx[j] + 1]))
           }
           
-          # Calculate P(at least one detection) for each site
           for (j in 1:n.test.sites) {
             species.predictions[j] <- 1 - mean(site.prob.no.det[[j]])
           }
@@ -1350,11 +1352,11 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       
       fold.deviance <- -2 * apply(like.samples, 1, function(a) sum(log(a), na.rm = TRUE))
       
-      # Calculate additional metrics
+      # Calculate metrics
       fold.metrics <- list()
       fold.metrics$deviance <- fold.deviance
       
-      # MODIFICATION: Store observed values for comparison
+      # Store observed values
       fold.observations <- list()
       for (r in 1:N) {
         obs.occ <- apply(y.big.0[r, , , drop = FALSE], 2, max, na.rm = TRUE)
@@ -1362,7 +1364,7 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
         fold.observations[[r]] <- obs.occ
       }
       
-      # Calculate AUC, RMSE, Tjur R2 to match deviance calculation
+      # Calculate additional metrics
       if (calculate.auc) {
         auc.values <- numeric(N)
         brier.scores <- numeric(N)
@@ -1388,8 +1390,7 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
             
             # Log Score
             eps <- 1e-10
-            pred.probs.bounded <- pmax(pmin(pred.probs[valid.sites], 
-                                            1 - eps), eps)
+            pred.probs.bounded <- pmax(pmin(pred.probs[valid.sites], 1 - eps), eps)
             log.scores[r] <- -mean(obs.occ[valid.sites] * log(pred.probs.bounded) + 
                                      (1 - obs.occ[valid.sites]) * log(1 - pred.probs.bounded))
             
@@ -1402,8 +1403,7 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
             rmse.values[r] <- sqrt(brier.scores[r])
             
             # MAE
-            mae.values[r] <- mean(abs(pred.probs[valid.sites] - 
-                                        obs.occ[valid.sites]))
+            mae.values[r] <- mean(abs(pred.probs[valid.sites] - obs.occ[valid.sites]))
           } else {
             auc.values[r] <- NA
             brier.scores[r] <- NA
@@ -1422,7 +1422,7 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
         fold.metrics$mae <- mae.values
       }
       
-      # MODIFICATION: Return predictions along with metrics
+      # Return both metrics and predictions
       return(list(
         metrics = fold.metrics,
         predictions = fold.predictions,
@@ -1434,70 +1434,76 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
     
     stopImplicitCluster()
     
-    # MODIFICATION: Process and store all predictions
-    # Extract metrics (as before)
+    # Process results
+    # Extract metrics
     all.metrics <- lapply(cv.metrics, function(x) x$metrics)
-    cv.metrics.df <- data.frame(
-      deviance = do.call(c, lapply(all.metrics, function(x) x$deviance))
-    )
+    
+    # Aggregate metrics as before
+    deviance.matrix <- do.call(rbind, lapply(all.metrics, function(x) x$deviance))
+    out$k.fold.deviance <- colSums(deviance.matrix, na.rm = TRUE)
+    names(out$k.fold.deviance) <- sp.names
     
     if (calculate.auc) {
-      cv.metrics.df$auc <- do.call(c, lapply(all.metrics, function(x) x$auc))
-      cv.metrics.df$brier <- do.call(c, lapply(all.metrics, function(x) x$brier))
-      cv.metrics.df$log.score <- do.call(c, lapply(all.metrics, function(x) x$log.score))
-      cv.metrics.df$tjur.r2 <- do.call(c, lapply(all.metrics, function(x) x$tjur.r2))
-      cv.metrics.df$rmse <- do.call(c, lapply(all.metrics, function(x) x$rmse))
-      cv.metrics.df$mae <- do.call(c, lapply(all.metrics, function(x) x$mae))
+      auc.matrix <- do.call(rbind, lapply(all.metrics, function(x) x$auc))
+      out$k.fold.auc <- colMeans(auc.matrix, na.rm = TRUE)
+      names(out$k.fold.auc) <- sp.names
+      
+      brier.matrix <- do.call(rbind, lapply(all.metrics, function(x) x$brier))
+      out$k.fold.brier <- colMeans(brier.matrix, na.rm = TRUE)
+      names(out$k.fold.brier) <- sp.names
+      
+      log.score.matrix <- do.call(rbind, lapply(all.metrics, function(x) x$log.score))
+      out$k.fold.log.score <- colMeans(log.score.matrix, na.rm = TRUE)
+      names(out$k.fold.log.score) <- sp.names
+      
+      tjur.matrix <- do.call(rbind, lapply(all.metrics, function(x) x$tjur.r2))
+      out$k.fold.tjur.r2 <- colMeans(tjur.matrix, na.rm = TRUE)
+      names(out$k.fold.tjur.r2) <- sp.names
     }
     
-    # Aggregate predictions by species
-    cv.pred.by.species <- list()
-    for (r in 1:N) {
-      species.preds <- list()
-      species.obs <- list()
-      
-      for (fold in 1:k.fold) {
-        species.preds[[fold]] <- cv.metrics[[fold]]$predictions[[r]]
-        species.obs[[fold]] <- cv.metrics[[fold]]$observations[[r]]
+    rmse.matrix <- do.call(rbind, lapply(all.metrics, function(x) x$rmse))
+    out$k.fold.rmse <- colMeans(rmse.matrix, na.rm = TRUE)
+    names(out$k.fold.rmse) <- sp.names
+    
+    mae.matrix <- do.call(rbind, lapply(all.metrics, function(x) x$mae))
+    out$k.fold.mae <- colMeans(mae.matrix, na.rm = TRUE)
+    names(out$k.fold.mae) <- sp.names
+    
+    # MODIFICATION: Process and store predictions if requested
+    if (return.cv.pred) {
+      cv.pred.by.species <- list()
+      for (r in 1:N) {
+        species.preds <- list()
+        species.obs <- list()
+        
+        for (fold in 1:k.fold) {
+          species.preds[[fold]] <- cv.metrics[[fold]]$predictions[[r]]
+          species.obs[[fold]] <- cv.metrics[[fold]]$observations[[r]]
+        }
+        
+        # Combine all folds
+        all.preds <- unlist(species.preds)
+        all.obs <- unlist(species.obs)
+        
+        # Separate by presence/absence
+        valid <- !is.na(all.obs)
+        presence.preds <- all.preds[valid & all.obs == 1]
+        absence.preds <- all.preds[valid & all.obs == 0]
+        
+        cv.pred.by.species[[r]] <- list(
+          all.predictions = all.preds[valid],
+          all.observations = all.obs[valid],
+          presence.predictions = presence.preds,
+          absence.predictions = absence.preds,
+          n.presences = length(presence.preds),
+          n.absences = length(absence.preds),
+          mean.presence = mean(presence.preds),
+          mean.absence = mean(absence.preds),
+          tjur.r2 = mean(presence.preds) - mean(absence.preds)
+        )
       }
       
-      # Combine all folds
-      all.preds <- unlist(species.preds)
-      all.obs <- unlist(species.obs)
-      
-      # Separate by presence/absence
-      valid <- !is.na(all.obs)
-      presence.preds <- all.preds[valid & all.obs == 1]
-      absence.preds <- all.preds[valid & all.obs == 0]
-      
-      cv.pred.by.species[[r]] <- list(
-        all.predictions = all.preds[valid],
-        all.observations = all.obs[valid],
-        presence.predictions = presence.preds,
-        absence.predictions = absence.preds,
-        n.presences = length(presence.preds),
-        n.absences = length(absence.preds),
-        mean.presence = mean(presence.preds),
-        mean.absence = mean(absence.preds),
-        tjur.r2 = mean(presence.preds) - mean(absence.preds)
-      )
-    }
-    
-    names(cv.pred.by.species) <- sp.names
-    
-    # Add to output
-    out$k.fold.deviance <- cv.metrics.df$deviance
-    if (calculate.auc) {
-      out$k.fold.auc <- cv.metrics.df$auc
-      out$k.fold.brier <- cv.metrics.df$brier  
-      out$k.fold.log.score <- cv.metrics.df$log.score
-      out$k.fold.tjur.r2 <- cv.metrics.df$tjur.r2
-      out$k.fold.rmse <- cv.metrics.df$rmse
-      out$k.fold.mae <- cv.metrics.df$mae
-    }
-    
-    # MODIFICATION: Add the stored predictions to output if requested
-    if (return.cv.pred) {
+      names(cv.pred.by.species) <- sp.names
       out$cv.predictions <- cv.pred.by.species
       out$cv.fold.results <- cv.metrics
     }
