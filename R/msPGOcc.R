@@ -1083,7 +1083,7 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
         y.0 <- y.0[!is.na(y.0)]
       }
       
-      z.inits.fit <- z.inits[, -curr.set]
+      z.inits.fit <- z.inits[, -curr.set, drop = FALSE]
       y.big.fit <- y.big[, -curr.set, , drop = FALSE]
       y.big.0 <- y.big[, curr.set, , drop = FALSE]
       X.p.fit <- X.p[y.indx, , drop = FALSE]
@@ -1119,12 +1119,14 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
           tmp.indx <- alpha.level.indx.fit[alpha.star.indx.fit == t - 1]
           p.re.level.names.fit[[t]] <- unlist(p.re.level.names)[tmp.indx + 1]    
         }
+        sigma.sq.p.inits.fit <- sigma.sq.p.inits
       } else {
         n.det.re.fit <- 0
         n.det.re.long.fit <- 0
         alpha.star.indx.fit <- 0
         alpha.level.indx.fit <- 0
         alpha.star.inits.fit <- 0
+        sigma.sq.p.inits.fit <- 0
         p.re.level.names.fit <- p.re.level.names
       }
       
@@ -1141,12 +1143,14 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
           tmp.indx <- beta.level.indx.fit[beta.star.indx.fit == t - 1]
           re.level.names.fit[[t]] <- unlist(re.level.names)[tmp.indx + 1]    
         }
+        sigma.sq.psi.inits.fit <- sigma.sq.psi.inits
       } else {
         n.occ.re.fit <- 0
         n.occ.re.long.fit <- 0
         beta.star.indx.fit <- 0
         beta.level.indx.fit <- 0
         beta.star.inits.fit <- 0
+        sigma.sq.psi.inits.fit <- 0
         re.level.names.fit <- re.level.names
       }
       
@@ -1195,6 +1199,8 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
       storage.mode(beta.star.inits.fit) <- "double"
       storage.mode(beta.star.indx.fit) <- "integer"
       storage.mode(beta.level.indx.fit) <- "integer"
+      storage.mode(sigma.sq.psi.inits.fit) <- "double"
+      storage.mode(sigma.sq.p.inits.fit) <- "double"
       storage.mode(chain.info) <- "integer"
       
       # Fit the model
@@ -1202,7 +1208,7 @@ msPGOcc <- function(occ.formula, det.formula, data, inits, priors,
                        K.fit, n.occ.re.long.fit, n.det.re.long.fit,
                        beta.inits, alpha.inits, z.inits.fit, beta.comm.inits, 
                        alpha.comm.inits, tau.sq.beta.inits, tau.sq.alpha.inits, 
-                       sigma.sq.psi.inits, sigma.sq.p.inits, 
+                       sigma.sq.psi.inits.fit, sigma.sq.p.inits.fit, 
                        beta.star.inits.fit, alpha.star.inits.fit, z.long.indx.fit, 
                        beta.star.indx.fit, beta.level.indx.fit, alpha.star.indx.fit, 
                        alpha.level.indx.fit, mu.beta.comm, mu.alpha.comm, 
